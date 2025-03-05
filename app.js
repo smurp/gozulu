@@ -75,25 +75,23 @@ function pointToClockwiseDegrees(x, y) {
 // Convert canonical clock degrees to UTC hours
 function clockDegreesToHours(degrees) {
   // Clock has 360 degrees, 24 hours
-  // 0 degrees (top) = 12:00 noon
-  // 180 degrees (bottom) = 00:00 midnight
-  // 90 degrees (right) = 18:00 (6 PM)
-  // 270 degrees (left) = 06:00 (6 AM)
+  // 0 degrees (top) = 00:00 midnight at Greenwich
+  // 180 degrees (bottom) = 12:00 noon at Greenwich
+  // 90 degrees (right) = 06:00 (6 AM) at Greenwich
+  // 270 degrees (left) = 18:00 (6 PM) at Greenwich
   
-  // Add 12 hours (180 degrees) to shift everything so 0 degrees = 12 noon
-  return ((degrees / 15) + 12) % 24;
+  return (degrees / 15) % 24;
 }
 
 // Convert UTC hours to canonical clock degrees
 function hoursToClockDegrees(hours) {
   // Each hour is 15 degrees
-  // 12:00 noon = 0 degrees (top)
-  // 00:00 midnight = 180 degrees (bottom)
-  // 18:00 (6 PM) = 90 degrees (right)
-  // 06:00 (6 AM) = 270 degrees (left)
+  // 00:00 midnight = 0 degrees (top)
+  // 12:00 noon = 180 degrees (bottom)
+  // 06:00 (6 AM) = 90 degrees (right)
+  // 18:00 (6 PM) = 270 degrees (left)
   
-  // Subtract 12 hours to shift everything so 12 noon = 0 degrees
-  return ((hours - 12) * 15 + 360) % 360;
+  return (hours * 15) % 360;
 }
 
 // Convert hours to sun position angle (in radians for cos/sin)
@@ -175,7 +173,8 @@ function updateClock() {
   }
   
   // Convert hours to clock degrees
-  const terminatorDegrees = hoursToClockDegrees(utcTimeForTerminator) + 180; // Add 180° because terminator is opposite the sun
+  const sunDegrees = hoursToClockDegrees(utcTimeForTerminator);
+  const terminatorDegrees = (sunDegrees + 180) % 360; // Add 180° because terminator is opposite the sun
   
   document.getElementById('terminator').style.transform = `rotate(${terminatorDegrees}deg)`;
   
@@ -199,8 +198,8 @@ function updateSunPosition(terminatorAngle) {
   const terminatorDegrees = terminatorAngle % 360; 
   
   // The sun is opposite to the terminator (180 degrees difference)
-  // But we need to adjust by 180 to correct the initial position
-  const hours = clockDegreesToHours(terminatorDegrees); // No adjustment needed now
+  const sunDegrees = (terminatorDegrees + 180) % 360;
+  const hours = clockDegreesToHours(sunDegrees);
   
   // Position sun based on hours
   const sunRadius = radius * 0.95;
