@@ -75,14 +75,25 @@ function pointToClockwiseDegrees(x, y) {
 // Convert canonical clock degrees to UTC hours
 function clockDegreesToHours(degrees) {
   // Clock has 360 degrees, 24 hours
-  // So each hour spans 15 degrees
-  return (degrees / 15) % 24;
+  // 0 degrees (top) = 12:00 noon
+  // 180 degrees (bottom) = 00:00 midnight
+  // 90 degrees (right) = 18:00 (6 PM)
+  // 270 degrees (left) = 06:00 (6 AM)
+  
+  // Add 12 hours (180 degrees) to shift everything so 0 degrees = 12 noon
+  return ((degrees / 15) + 12) % 24;
 }
 
 // Convert UTC hours to canonical clock degrees
 function hoursToClockDegrees(hours) {
   // Each hour is 15 degrees
-  return (hours * 15) % 360;
+  // 12:00 noon = 0 degrees (top)
+  // 00:00 midnight = 180 degrees (bottom)
+  // 18:00 (6 PM) = 90 degrees (right)
+  // 06:00 (6 AM) = 270 degrees (left)
+  
+  // Subtract 12 hours to shift everything so 12 noon = 0 degrees
+  return ((hours - 12) * 15 + 360) % 360;
 }
 
 // Convert hours to sun position angle (in radians for cos/sin)
@@ -163,13 +174,14 @@ function updateClock() {
     utcTimeForTerminator = utcHours + (snappedMinutes / 60);
   }
   
-  const terminatorAngle = (utcTimeForTerminator * 15) + 180; // +180 to align with the correct sun position
+  // Convert hours to clock degrees
+  const terminatorDegrees = hoursToClockDegrees(utcTimeForTerminator) + 180; // Add 180° because terminator is opposite the sun
   
-  document.getElementById('terminator').style.transform = `rotate(${terminatorAngle}deg)`;
+  document.getElementById('terminator').style.transform = `rotate(${terminatorDegrees}deg)`;
   
   // Update sun position - but not if user is actively dragging it
   if (!isDraggingSun && !isAnimatingSpringBack) {
-    updateSunPosition(terminatorAngle);
+    updateSunPosition(terminatorDegrees);
   }
 }
 
@@ -185,7 +197,10 @@ function updateSunPosition(terminatorAngle) {
   // Convert terminator angle to UTC hours
   // Terminator angle is in clock degrees where 0° is at 12 o'clock
   const terminatorDegrees = terminatorAngle % 360; 
-  const hours = clockDegreesToHours(terminatorDegrees - 180); // Subtract 180° because terminator is opposite sun
+  
+  // The sun is opposite to the terminator (180 degrees difference)
+  // But we need to adjust by 180 to correct the initial position
+  const hours = clockDegreesToHours(terminatorDegrees); // No adjustment needed now
   
   // Position sun based on hours
   const sunRadius = radius * 0.95;
