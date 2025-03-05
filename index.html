@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#000033">
+  <title>Earth Clock</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+</head>
+<body>
+  <div class="container">
+    <div id="clock">
+      <div id="earth-container">
+        <div id="earth-image"></div>
+        <div id="sunlight"></div>
+      </div>
+      <div id="clock-face">
+        <div id="hour-marks">
+          <!-- Hour marks will be added via JavaScript -->
+        </div>
+        <div id="hour-hand"></div>
+        <div id="minute-hand"></div>
+        <div id="second-hand"></div>
+        <div id="center-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Register service worker for PWA functionality
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('Service Worker registered', reg))
+        .catch(err => console.error('Service Worker registration failed', err));
+    }
+  </script>
+</body>
+</html>

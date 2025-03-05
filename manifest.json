@@ -1,0 +1,24 @@
+{
+  "name": "Earth Clock",
+  "short_name": "Earth Clock",
+  "description": "24-hour analog clock with Earth viewed from the North pole",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000033",
+  "theme_color": "#000033",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
