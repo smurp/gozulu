@@ -12,21 +12,26 @@
 </head>
 <body>
   <div class="container">
+    <div id="zulu-time" class="time-display">00:00:00Z</div>
+    
     <div id="clock">
       <div id="earth-container">
         <div id="earth-image"></div>
-        <div id="sunlight"></div>
-      </div>
-      <div id="clock-face">
-        <div id="hour-marks">
-          <!-- Hour marks will be added via JavaScript -->
+        <div id="terminator"></div>
+        <div id="sun-position"></div>
+        <div id="user-location-pin">
+          <div class="pin-point"></div>
+          <div class="pin-pulse"></div>
         </div>
-        <div id="hour-hand"></div>
-        <div id="minute-hand"></div>
-        <div id="second-hand"></div>
-        <div id="center-dot"></div>
       </div>
+      
+      <div id="hour-marks"></div>
+      
+      <!-- Greenwich meridian indicator -->
+      <div id="greenwich-line"></div>
     </div>
+    
+    <div id="local-time" class="time-display">Local: 00:00 XXX</div>
   </div>
 
   <script src="app.js"></script>

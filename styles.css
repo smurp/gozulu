@@ -20,12 +20,15 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+  max-width: 100%;
 }
 
 #clock {
   position: relative;
   width: 300px;
   height: 300px;
+  margin: 20px 0;
   border-radius: 50%;
   background-color: #000033;
   box-shadow: 0 0 30px rgba(0, 0, 255, 0.2);
@@ -46,77 +49,117 @@ body {
   background-image: url('images/earth-north-pole.png');
   background-size: cover;
   background-position: center;
-  opacity: 0.7;
+  border-radius: 50%;
 }
 
-#sunlight {
-  position: absolute;
-  width: 150%;
-  height: 300%;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
-  top: -100%;
-  left: -25%;
-  transform-origin: center;
-  pointer-events: none;
-}
-
-#clock-face {
+#terminator {
   position: absolute;
   width: 100%;
   height: 100%;
   border-radius: 50%;
+  background: linear-gradient(90deg, 
+    rgba(0, 0, 0, 0.7) 0%, 
+    rgba(0, 0, 0, 0) 40%, 
+    rgba(0, 0, 0, 0) 60%, 
+    rgba(0, 0, 0, 0.7) 100%);
+  pointer-events: none;
+}
+
+#sun-position {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  background-color: #FFD700;
+  border-radius: 50%;
+  box-shadow: 0 0 10px 5px rgba(255, 215, 0, 0.5);
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+.time-display {
+  font-family: 'Courier New', monospace;
+  font-size: 24px;
+  font-weight: bold;
+  margin: 10px 0;
+  text-align: center;
+  text-shadow: 0 0 5px rgba(0, 0, 255, 0.5);
+}
+
+#zulu-time {
+  color: #FFFFFF;
+}
+
+#local-time {
+  color: #90EE90;
+}
+
+#hour-marks {
+  position: absolute;
+  width: 100%;
+  height: 100%;
 }
 
 .hour-mark {
   position: absolute;
   width: 2px;
-  height: 15px;
-  background: rgba(255, 255, 255, 0.8);
+  height: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  top: 0;
   left: 50%;
-  transform-origin: bottom;
-}
-
-#hour-hand, #minute-hand, #second-hand {
-  position: absolute;
-  background: #ffffff;
   transform-origin: bottom center;
-  left: 50%;
-  border-radius: 5px;
 }
 
-#hour-hand {
-  width: 8px;
-  height: 70px;
-  top: 80px;
-  margin-left: -4px;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-#minute-hand {
-  width: 4px;
-  height: 100px;
-  top: 50px;
-  margin-left: -2px;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-#second-hand {
-  width: 2px;
-  height: 120px;
-  top: 30px;
-  margin-left: -1px;
-  background: rgba(255, 255, 255, 0.6);
-}
-
-#center-dot {
+#greenwich-line {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  background: #ffffff;
+  width: 1px;
+  height: 100%;
+  background-color: #FF0000;
+  top: 0;
+  left: 50%;
+  z-index: 5;
+}
+
+#user-location-pin {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+}
+
+.pin-point {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: #FF3366;
   border-radius: 50%;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.pin-pulse {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(255, 51, 102, 0.4);
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
 }
 
 /* Responsive adjustments */
@@ -126,33 +169,32 @@ body {
     height: 500px;
   }
   
-  #hour-hand {
-    width: 10px;
-    height: 120px;
-    top: 130px;
-    margin-left: -5px;
+  .time-display {
+    font-size: 28px;
   }
   
-  #minute-hand {
-    width: 6px;
-    height: 160px;
-    top: 90px;
-    margin-left: -3px;
-  }
-  
-  #second-hand {
-    width: 3px;
-    height: 200px;
-    top: 50px;
-    margin-left: -1.5px;
-  }
-  
-  #center-dot {
-    width: 16px;
-    height: 16px;
+  #sun-position {
+    width: 20px;
+    height: 20px;
   }
   
   .hour-mark {
-    height: 20px;
+    height: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  #clock {
+    width: 280px;
+    height: 280px;
+  }
+  
+  .time-display {
+    font-size: 20px;
+  }
+  
+  #sun-position {
+    width: 12px;
+    height: 12px;
   }
 }

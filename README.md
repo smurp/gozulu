@@ -1,12 +1,15 @@
 # Earth Clock PWA
 
-A Progressive Web App featuring a 24-hour analog clock with the sunlit Earth viewed from the North pole.
+A Progressive Web App featuring a 24-hour clock with Earth viewed from the North pole, showing the day/night terminator, Zulu time, local time, and user's location.
 
 ## Features
 
-- 24-hour analog clock displaying UTC time
-- Visual representation of Earth from the North pole
-- Simulated sunlight position based on the current time
+- Earth visualization with realistic day/night terminator
+- Greenwich meridian at the top (prime meridian aligned vertically)
+- Zulu time (GMT/UTC) display in 23:59:59Z format
+- Local time display with timezone abbreviation
+- User location pin based on geolocation
+- Visual representation of the sun position
 - Fully responsive design
 - Works offline as a Progressive Web App
 - Installable on desktop and mobile devices
@@ -15,43 +18,55 @@ A Progressive Web App featuring a 24-hour analog clock with the sunlit Earth vie
 
 ### Prerequisites
 
-- Node.js and npm (for development server)
-- An image of Earth from the North pole perspective
+- Node.js (for development server)
+- A high-quality image of Earth from the North pole perspective
 
-### Installation
+### Project Structure
 
-1. Clone this repository or download the files
-2. Create the following directory structure:
-   ```
-   earth-clock/
-   ├── index.html
-   ├── styles.css
-   ├── app.js
-   ├── service-worker.js
-   ├── manifest.json
-   ├── favicon.ico
-   ├── images/
-   │   └── earth-north-pole.png
-   └── icons/
-       ├── icon-192x192.png
-       └── icon-512x512.png
-   ```
+```
+earth-clock/
+├── index.html
+├── styles.css
+├── app.js
+├── service-worker.js
+├── manifest.json
+├── favicon.ico
+├── images/
+│   └── earth-north-pole.png
+└── icons/
+    ├── icon-192x192.png
+    └── icon-512x512.png
+```
 
-3. Add the Earth image:
-   - Place an image of Earth viewed from the North pole in the `images` directory
-   - Name it `earth-north-pole.png`
-   - For best results, use a high-resolution image with transparent background
+### Earth Image
 
-4. Add app icons:
-   - Create two square PNG icons for your app (192×192 and 512×512 pixels)
-   - Place them in the `icons` directory
+For best results, you need a high-quality image of Earth from the North pole perspective. The image should:
+- Be square in dimensions (1:1 aspect ratio)
+- Have a transparent background if possible
+- Show all continents clearly
+- Have sufficient resolution (at least 1000x1000 pixels recommended)
+
+Sources for Earth images:
+1. NASA's Visible Earth (https://visibleearth.nasa.gov/)
+2. NASA Blue Marble collection
+3. NOAA's satellite imagery repositories
+
+Save your image as `earth-north-pole.png` in the `images` directory.
+
+### App Icons
+
+You'll need two app icons for your PWA:
+- `icon-192x192.png` (192×192 pixels)
+- `icon-512x512.png` (512×512 pixels)
+
+Place these in the `icons` directory.
 
 ### Running Locally
 
 For development, you can use a simple HTTP server:
 
 ```bash
-# Using npm to install a simple server
+# Install a simple HTTP server globally
 npm install -g http-server
 
 # Navigate to your project directory
@@ -63,62 +78,95 @@ http-server -p 8080
 
 Then open your browser to `http://localhost:8080`
 
-### Deployment
+### Deployment to Ubuntu 24 LTS
 
 To deploy to your Ubuntu 24 LTS server:
 
-1. Set up a web server (Nginx or Apache)
-2. Copy all files to your web server's document root
-3. Ensure proper HTTPS is configured (required for PWA features)
+1. Install and configure Nginx:
+   ```bash
+   sudo apt update
+   sudo apt install nginx
+   ```
 
-Example Nginx configuration:
+2. Create a configuration file for your site:
+   ```bash
+   sudo nano /etc/nginx/sites-available/earth-clock
+   ```
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name your-domain.com;
+3. Add the following configuration:
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com;
 
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
+       root /var/www/earth-clock;
+       index index.html;
 
-    root /var/www/earth-clock;
-    index index.html;
+       location / {
+           try_files $uri $uri/ =404;
+       }
 
-    location / {
-        try_files $uri $uri/ =404;
-    }
+       # Add caching for static assets
+       location ~* \.(css|js|png|jpg|jpeg|gif|ico)$ {
+           expires 1y;
+           add_header Cache-Control "public, max-age=31536000";
+       }
+   }
+   ```
 
-    # Add caching for static assets
-    location ~* \.(css|js|png|jpg|jpeg|gif|ico)$ {
-        expires 1y;
-        add_header Cache-Control "public, max-age=31536000";
-    }
-}
-```
+4. Enable the site and restart Nginx:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/earth-clock /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+   ```
+
+5. Upload your files:
+   ```bash
+   # Create directory
+   sudo mkdir -p /var/www/earth-clock
+   
+   # Set permissions
+   sudo chown -R $USER:$USER /var/www/earth-clock
+   
+   # Copy files (from your local machine)
+   scp -r earth-clock/* username@your-server:/var/www/earth-clock/
+   ```
+
+6. Set up HTTPS (recommended for PWAs):
+   ```bash
+   sudo apt install certbot python3-certbot-nginx
+   sudo certbot --nginx -d your-domain.com
+   ```
+
+### Using the App
+
+The Earth Clock shows:
+1. The Earth from the North pole view, with Greenwich at the top
+2. The day/night terminator showing which parts of Earth are in daylight
+3. Zulu time (GMT/UTC) display at the top
+4. Your local time with timezone abbreviation at the bottom
+5. A pin showing your location (requires permission to access your location)
+6. A yellow circle representing the sun's position
+
+The app will work offline after the first load and can be installed on supported devices by clicking the install prompt in your browser.
 
 ## Customization
 
-### Changing Colors
+### Appearance
 
-Edit the `styles.css` file to customize the appearance:
+To customize the appearance, modify the `styles.css` file:
+- Change background colors
+- Adjust the size and appearance of elements
+- Modify the time display format
 
-- Background color: Change `background-color: #000033;` to your preferred color
-- Clock hands: Modify the CSS for `#hour-hand`, `#minute-hand`, and `#second-hand`
+### Functionality
 
-### Adding Features
-
-Some ideas for extending the app:
-
-- Add digital time display
-- Include timezone selection
-- Add animation for Earth rotation
-- Implement day/night cycle visualization
-- Add seasonal changes to Earth's tilt
+Possible modifications to `app.js`:
+- Change the refresh rate (currently set to 1 second)
+- Modify how the terminator is displayed
+- Add features like clicking on locations to see their local time
 
 ## License
 
 This project is available under the MIT License.
-
-## Credits
-
-- Earth imagery source: [NASA Visible Earth](https://visibleearth.nasa.gov/)

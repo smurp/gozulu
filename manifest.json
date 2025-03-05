@@ -1,7 +1,7 @@
 {
   "name": "Earth Clock",
   "short_name": "Earth Clock",
-  "description": "24-hour analog clock with Earth viewed from the North pole",
+  "description": "24-hour analog clock with Earth viewed from the North pole and day/night terminator",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000033",
