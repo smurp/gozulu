@@ -1,172 +1,200 @@
-# Earth Clock PWA
+document.addEventListener('DOMContentLoaded', () => {
+  // Create hour marks for 24-hour clock
+  createHourMarks();
+  
+  // Initialize the clock
+  updateClock();
+  
+  // Update every second
+  setInterval(updateClock, 1000);
+  
+  // Get user's location (if permitted)
+  getUserLocation();
+  
+  // Handle window resize
+  window.addEventListener('resize', adjustClockSize);
+  adjustClockSize();
+});
 
-A Progressive Web App featuring a 24-hour clock with Earth viewed from the North pole, showing the day/night terminator, Zulu time, local time, and user's location.
+function createHourMarks() {
+  const hourMarksContainer = document.getElementById('hour-marks');
+  
+  // Create 24 hour marks without numbers
+  for (let i = 0; i < 24; i++) {
+    const hourMark = document.createElement('div');
+    hourMark.className = 'hour-mark';
+    
+    // Calculate rotation (15 degrees per hour, with 0/24 at the top)
+    const rotation = i * 15;
+    hourMark.style.transform = `rotate(${rotation}deg) translateX(-50%)`;
+    hourMark.style.transformOrigin = '50% 50%';
+    
+    // Position at the edge of the clock
+    hourMark.style.top = '0';
+    hourMark.style.height = '10px';
+    
+    hourMarksContainer.appendChild(hourMark);
+  }
+}
 
-## Features
+function updateClock() {
+  const now = new Date();
+  
+  // Update Zulu (GMT/UTC) time display
+  const zuluHours = String(now.getUTCHours()).padStart(2, '0');
+  const zuluMinutes = String(now.getUTCMinutes()).padStart(2, '0');
+  const zuluSeconds = String(now.getUTCSeconds()).padStart(2, '0');
+  document.getElementById('zulu-time').textContent = `${zuluHours}:${zuluMinutes}:${zuluSeconds}Z`;
+  
+  // Update local time display
+  const localHours = String(now.getHours()).padStart(2, '0');
+  const localMinutes = String(now.getMinutes()).padStart(2, '0');
+  const timeZoneAbbr = getTimeZoneAbbreviation();
+  
+  // Get or create the local time element
+  let localTimeElement = document.getElementById('local-time');
+  if (!localTimeElement) {
+    localTimeElement = document.createElement('div');
+    localTimeElement.id = 'local-time';
+    localTimeElement.className = 'time-display';
+    document.getElementById('clock').appendChild(localTimeElement);
+  }
+  
+  localTimeElement.textContent = `${localHours}:${localMinutes} ${timeZoneAbbr}`;
+  
+  // Update terminator rotation
+  // The terminator rotates once every 24 hours (15 degrees per hour)
+  // We compute the angle based on UTC hours and minutes
+  const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
+  const utcTime = utcHours + (utcMinutes / 60);
+  const terminatorAngle = (utcTime * 15) + 180; // +180 to align with the correct sun position
+  
+  document.getElementById('terminator').style.transform = `rotate(${terminatorAngle}deg)`;
+  
+  // Update sun position
+  updateSunPosition(terminatorAngle);
+}
 
-- Earth visualization with realistic day/night terminator
-- Greenwich meridian at the top (prime meridian aligned vertically)
-- Zulu time (GMT/UTC) display in 23:59:59Z format
-- Local time display with timezone abbreviation
-- User location pin based on geolocation
-- Visual representation of the sun position
-- Fully responsive design
-- Works offline as a Progressive Web App
-- Installable on desktop and mobile devices
+function updateSunPosition(terminatorAngle) {
+  const sunElement = document.getElementById('sun-position');
+  const clockElement = document.getElementById('clock');
+  const radius = clockElement.offsetWidth / 2;
+  
+  // Place sun at the edge of the clock face
+  // The sun should be on the opposite side from the dark part of the terminator
+  // Adjust by 90 degrees to position correctly relative to terminator
+  const sunAngle = (terminatorAngle - 90) * (Math.PI / 180); // Convert to radians and adjust
+  
+  // Calculate position using trigonometry 
+  // Position the sun just at the edge of the Earth image
+  const sunRadius = radius * 0.95; // Position at 95% of radius to ensure visibility
+  const x = Math.cos(sunAngle) * sunRadius + radius;
+  const y = Math.sin(sunAngle) * sunRadius + radius;
+  
+  // Make sure the sun is visible by setting explicit z-index and visibility
+  sunElement.style.left = `${x}px`;
+  sunElement.style.top = `${y}px`;
+  sunElement.style.visibility = 'visible';
+  sunElement.style.zIndex = '30'; // Ensure it's on top of everything
+}
 
-## Setup Instructions
+function getUserLocation() {
+  if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition(position => {
+      const { latitude, longitude } = position.coords;
+      updateUserLocationPin(latitude, longitude);
+    }, error => {
+      console.error('Error getting user location:', error);
+      // Set a default position if location access is denied
+      updateUserLocationPin(0, 0); // Default to center (equator at Greenwich)
+    });
+  } else {
+    console.log('Geolocation not supported');
+    updateUserLocationPin(0, 0); // Default to center
+  }
+}
 
-### Prerequisites
+function updateUserLocationPin(latitude, longitude) {
+  const pinElement = document.getElementById('user-location-pin');
+  const localTimeElement = document.getElementById('local-time');
+  const clockElement = document.getElementById('clock');
+  const radius = clockElement.offsetWidth / 2;
+  
+  // Convert geographic coordinates to position on the clock face
+  // For a north-pole view:
+  // - Latitude determines distance from center (90° at center, 0° at edge)
+  // - Longitude determines the angle (0° at top, increasing clockwise)
+  
+  // Calculate distance from center (latitude)
+  // Map latitude from 90 (center) to 0 (edge)
+  const distanceFromCenter = (90 - latitude) / 90;
+  
+  // Account for the map rotation of -135 degrees
+  // So 0° longitude is at the top (Greenwich)
+  // This means we need to adjust our angle calculation
+  
+  // Calculate angle (longitude)
+  // Map longitude from -180 to 180 to 0 to 360
+  let angle = longitude + 180;
+  angle = (angle + 270) % 360; // Adjust so 0° longitude is at the top
+  angle = angle * (Math.PI / 180); // Convert to radians
+  
+  // Calculate position for pin
+  const x = Math.cos(angle) * (radius * distanceFromCenter) + radius;
+  const y = Math.sin(angle) * (radius * distanceFromCenter) + radius;
+  
+  pinElement.style.left = `${x}px`;
+  pinElement.style.top = `${y}px`;
+  
+  // Position local time display radially outside the clock face
+  if (localTimeElement) {
+    // Calculate position for local time text - further out from the center
+    const textDistanceFactor = 1.3; // Position 30% outside the clock radius
+    const textX = Math.cos(angle) * (radius * textDistanceFactor) + radius;
+    const textY = Math.sin(angle) * (radius * textDistanceFactor) + radius;
+    
+    localTimeElement.style.left = `${textX}px`;
+    localTimeElement.style.top = `${textY}px`;
+  }
+}
 
-- Node.js (for development server)
-- A high-quality image of Earth from the North pole perspective
+function getTimeZoneAbbreviation() {
+  const options = { timeZoneName: 'short' };
+  const timeZoneString = new Intl.DateTimeFormat('en-US', options).format(new Date());
+  
+  // Extract the abbreviation from the formatted string
+  const timeZoneAbbr = timeZoneString.split(' ').pop();
+  return timeZoneAbbr;
+}
 
-### Project Structure
-
-```
-earth-clock/
-├── index.html
-├── styles.css
-├── app.js
-├── service-worker.js
-├── manifest.json
-├── favicon.ico
-├── images/
-│   └── earth-north-pole.png
-└── icons/
-    ├── icon-192x192.png
-    └── icon-512x512.png
-```
-
-### Earth Image
-
-For best results, you need a high-quality image of Earth from the North pole perspective. The image should:
-- Be square in dimensions (1:1 aspect ratio)
-- Have a transparent background if possible
-- Show all continents clearly
-- Have sufficient resolution (at least 1000x1000 pixels recommended)
-
-Sources for Earth images:
-1. NASA's Visible Earth (https://visibleearth.nasa.gov/)
-2. NASA Blue Marble collection
-3. NOAA's satellite imagery repositories
-
-Save your image as `earth-north-pole.png` in the `images` directory.
-
-### App Icons
-
-You'll need two app icons for your PWA:
-- `icon-192x192.png` (192×192 pixels)
-- `icon-512x512.png` (512×512 pixels)
-
-Place these in the `icons` directory.
-
-### Running Locally
-
-For development, you can use a simple HTTP server:
-
-```bash
-# Install a simple HTTP server globally
-npm install -g http-server
-
-# Navigate to your project directory
-cd earth-clock
-
-# Start the server
-http-server -p 8080
-```
-
-Then open your browser to `http://localhost:8080`
-
-### Deployment to Ubuntu 24 LTS
-
-To deploy to your Ubuntu 24 LTS server:
-
-1. Install and configure Nginx:
-   ```bash
-   sudo apt update
-   sudo apt install nginx
-   ```
-
-2. Create a configuration file for your site:
-   ```bash
-   sudo nano /etc/nginx/sites-available/earth-clock
-   ```
-
-3. Add the following configuration:
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-
-       root /var/www/earth-clock;
-       index index.html;
-
-       location / {
-           try_files $uri $uri/ =404;
-       }
-
-       # Add caching for static assets
-       location ~* \.(css|js|png|jpg|jpeg|gif|ico)$ {
-           expires 1y;
-           add_header Cache-Control "public, max-age=31536000";
-       }
-   }
-   ```
-
-4. Enable the site and restart Nginx:
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/earth-clock /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
-
-5. Upload your files:
-   ```bash
-   # Create directory
-   sudo mkdir -p /var/www/earth-clock
-   
-   # Set permissions
-   sudo chown -R $USER:$USER /var/www/earth-clock
-   
-   # Copy files (from your local machine)
-   scp -r earth-clock/* username@your-server:/var/www/earth-clock/
-   ```
-
-6. Set up HTTPS (recommended for PWAs):
-   ```bash
-   sudo apt install certbot python3-certbot-nginx
-   sudo certbot --nginx -d your-domain.com
-   ```
-
-### Using the App
-
-The Earth Clock shows:
-1. The Earth from the North pole view, with Greenwich at the top
-2. The day/night terminator showing which parts of Earth are in daylight
-3. Zulu time (GMT/UTC) display at the top
-4. Your local time with timezone abbreviation at the bottom
-5. A pin showing your location (requires permission to access your location)
-6. A yellow circle representing the sun's position
-
-The app will work offline after the first load and can be installed on supported devices by clicking the install prompt in your browser.
-
-## Customization
-
-### Appearance
-
-To customize the appearance, modify the `styles.css` file:
-- Change background colors
-- Adjust the size and appearance of elements
-- Modify the time display format
-
-### Functionality
-
-Possible modifications to `app.js`:
-- Change the refresh rate (currently set to 1 second)
-- Modify how the terminator is displayed
-- Add features like clicking on locations to see their local time
-
-## License
-
-This project is available under the MIT License.
+function adjustClockSize() {
+  const container = document.querySelector('.container');
+  const clockElement = document.getElementById('clock');
+  
+  // Get available space (accounting for the time displays)
+  const availableHeight = window.innerHeight - 150; // Subtract space for time displays
+  const availableWidth = window.innerWidth - 40; // Account for padding
+  
+  // Determine the maximum size that fits the available space
+  const maxSize = Math.min(availableHeight, availableWidth, 600); // Cap at 600px
+  
+  // Apply the new size
+  clockElement.style.width = `${maxSize}px`;
+  clockElement.style.height = `${maxSize}px`;
+  
+  // Ensure our clock's positioning context is correct
+  clockElement.style.position = 'relative';
+  
+  // Update sun and pin positions after resize
+  // We need to update the getUserLocation to reflect the new size
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(position => {
+      updateUserLocationPin(position.coords.latitude, position.coords.longitude);
+    }, error => {
+      updateUserLocationPin(0, 0); // Default to center on error
+    });
+  }
+  
+  updateClock();
+}

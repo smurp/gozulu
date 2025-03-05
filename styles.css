@@ -74,6 +74,13 @@ body {
   box-shadow: 0 0 15px 10px rgba(255, 215, 0, 0.7);
   transform: translate(-50%, -50%);
   z-index: 20;
+  cursor: grab;
+  transition: box-shadow 0.2s ease;
+}
+
+#sun-position:active {
+  cursor: grabbing;
+  box-shadow: 0 0 20px 15px rgba(255, 215, 0, 0.8);
 }
 
 .time-display {
@@ -117,15 +124,7 @@ body {
   transform-origin: bottom center;
 }
 
-#greenwich-line {
-  position: absolute;
-  width: 1px;
-  height: 100%;
-  background-color: #FF0000;
-  top: 0;
-  left: 50%;
-  z-index: 5;
-}
+/* Greenwich line removed */
 
 #user-location-pin {
   position: absolute;
