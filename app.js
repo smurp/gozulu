@@ -80,7 +80,7 @@ function clockDegreesToHours(degrees) {
   // 90 degrees (right) = 06:00 (6 AM) at Greenwich
   // 270 degrees (left) = 18:00 (6 PM) at Greenwich
   
-  return (degrees / 15) % 24;
+  return (((degrees + 180) / 15)) % 24;
 }
 
 // Convert UTC hours to canonical clock degrees
@@ -91,7 +91,7 @@ function hoursToClockDegrees(hours) {
   // 06:00 (6 AM) = 90 degrees (right)
   // 18:00 (6 PM) = 270 degrees (left)
   
-  return (hours * 15) % 360;
+  return ((hours * 15) + 180) % 360;
 }
 
 // Convert hours to sun position angle (in radians for cos/sin)
@@ -327,6 +327,7 @@ function startDrag(e) {
     
     // Calculate starting angle
     startAngle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
+    startAngle = startAngle - 180;
     
     // Add "dragging" class to the sun
     sunElement.classList.add('dragging');
@@ -347,6 +348,7 @@ function drag(e) {
     
     // Calculate new angle
     let angle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
+    angle = angle - 180;
     
     // Convert angle to hours
     // Angle increases clockwise from right (3 o'clock position)
