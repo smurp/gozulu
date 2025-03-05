@@ -75,7 +75,17 @@ function updateClock() {
   const localHours = String(now.getHours()).padStart(2, '0');
   const localMinutes = String(now.getMinutes()).padStart(2, '0');
   const timeZoneAbbr = getTimeZoneAbbreviation();
-  document.getElementById('local-time').textContent = `Local: ${localHours}:${localMinutes} ${timeZoneAbbr}`;
+  
+  // Get or create the local time element
+  let localTimeElement = document.getElementById('local-time');
+  if (!localTimeElement) {
+    localTimeElement = document.createElement('div');
+    localTimeElement.id = 'local-time';
+    localTimeElement.className = 'time-display';
+    document.getElementById('clock').appendChild(localTimeElement);
+  }
+  
+  localTimeElement.textContent = `${localHours}:${localMinutes} ${timeZoneAbbr}`;
   
   // Update terminator rotation
   // The terminator rotates once every 24 hours (15 degrees per hour)
@@ -98,16 +108,20 @@ function updateSunPosition(terminatorAngle) {
   
   // Place sun at the edge of the clock face
   // The sun should be on the opposite side from the dark part of the terminator
+  // Adjust by 90 degrees to position correctly relative to terminator
   const sunAngle = (terminatorAngle - 90) * (Math.PI / 180); // Convert to radians and adjust
   
   // Calculate position using trigonometry 
-  // Radius is slightly larger than the clock radius to position outside the Earth
-  const sunRadius = radius * 1.1;
+  // Position the sun just at the edge of the Earth image
+  const sunRadius = radius * 0.95; // Position at 95% of radius to ensure visibility
   const x = Math.cos(sunAngle) * sunRadius + radius;
   const y = Math.sin(sunAngle) * sunRadius + radius;
   
+  // Make sure the sun is visible by setting explicit z-index and visibility
   sunElement.style.left = `${x}px`;
   sunElement.style.top = `${y}px`;
+  sunElement.style.visibility = 'visible';
+  sunElement.style.zIndex = '30'; // Ensure it's on top of everything
 }
 
 function getUserLocation() {
@@ -128,6 +142,7 @@ function getUserLocation() {
 
 function updateUserLocationPin(latitude, longitude) {
   const pinElement = document.getElementById('user-location-pin');
+  const localTimeElement = document.getElementById('local-time');
   const clockElement = document.getElementById('clock');
   const radius = clockElement.offsetWidth / 2;
   
@@ -140,18 +155,33 @@ function updateUserLocationPin(latitude, longitude) {
   // Map latitude from 90 (center) to 0 (edge)
   const distanceFromCenter = (90 - latitude) / 90;
   
+  // Account for the map rotation of -135 degrees
+  // So 0° longitude is at the top (Greenwich)
+  // This means we need to adjust our angle calculation
+  
   // Calculate angle (longitude)
-  // Map longitude from -180 to 180 to 0 to 360, with 0 at the top
+  // Map longitude from -180 to 180 to 0 to 360
   let angle = longitude + 180;
   angle = (angle + 270) % 360; // Adjust so 0° longitude is at the top
   angle = angle * (Math.PI / 180); // Convert to radians
   
-  // Calculate position
+  // Calculate position for pin
   const x = Math.cos(angle) * (radius * distanceFromCenter) + radius;
   const y = Math.sin(angle) * (radius * distanceFromCenter) + radius;
   
   pinElement.style.left = `${x}px`;
   pinElement.style.top = `${y}px`;
+  
+  // Position local time display radially outside the clock face
+  if (localTimeElement) {
+    // Calculate position for local time text - further out from the center
+    const textDistanceFactor = 1.3; // Position 30% outside the clock radius
+    const textX = Math.cos(angle) * (radius * textDistanceFactor) + radius;
+    const textY = Math.sin(angle) * (radius * textDistanceFactor) + radius;
+    
+    localTimeElement.style.left = `${textX}px`;
+    localTimeElement.style.top = `${textY}px`;
+  }
 }
 
 function getTimeZoneAbbreviation() {
@@ -178,6 +208,18 @@ function adjustClockSize() {
   clockElement.style.width = `${maxSize}px`;
   clockElement.style.height = `${maxSize}px`;
   
+  // Ensure our clock's positioning context is correct
+  clockElement.style.position = 'relative';
+  
   // Update sun and pin positions after resize
+  // We need to update the getUserLocation to reflect the new size
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(position => {
+      updateUserLocationPin(position.coords.latitude, position.coords.longitude);
+    }, error => {
+      updateUserLocationPin(0, 0); // Default to center on error
+    });
+  }
+  
   updateClock();
 }

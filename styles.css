@@ -67,13 +67,13 @@ body {
 
 #sun-position {
   position: absolute;
-  width: 15px;
-  height: 15px;
+  width: 20px;
+  height: 20px;
   background-color: #FFD700;
   border-radius: 50%;
-  box-shadow: 0 0 10px 5px rgba(255, 215, 0, 0.5);
+  box-shadow: 0 0 15px 10px rgba(255, 215, 0, 0.7);
   transform: translate(-50%, -50%);
-  z-index: 10;
+  z-index: 20;
 }
 
 .time-display {
@@ -91,6 +91,14 @@ body {
 
 #local-time {
   color: #90EE90;
+  position: absolute;
+  padding: 5px 10px;
+  background-color: rgba(0, 0, 51, 0.7);
+  border-radius: 5px;
+  font-size: 16px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  z-index: 15;
 }
 
 #hour-marks {
