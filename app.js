@@ -44,6 +44,7 @@ function createHourMarks() {
 let userAdjustedTime = null;
 let springBackAnimation = null;
 let isAnimatingSpringBack = false;
+let isDraggingSun = false;
 
 function updateClock() {
   const now = new Date();
@@ -102,8 +103,8 @@ function updateClock() {
   
   document.getElementById('terminator').style.transform = `rotate(${terminatorAngle}deg)`;
   
-  // Update sun position
-  if (!isAnimatingSpringBack) {
+  // Update sun position - but not if user is actively dragging it
+  if (!isDraggingSun && !isAnimatingSpringBack) {
     updateSunPosition(terminatorAngle);
   }
 }
@@ -226,12 +227,20 @@ function setupDraggableSun() {
   document.addEventListener('mouseup', endDrag);
   document.addEventListener('touchend', endDrag);
   
-  function startDrag(e) {
+function startDrag(e) {
     e.preventDefault();
     isDragging = true;
     
     // Store the current real time before user adjustment
     currentRealTime = new Date();
+    
+    // Get current real time UTC
+    const utcHours = currentRealTime.getUTCHours();
+    const utcMinutes = currentRealTime.getUTCMinutes();
+    const utcTime = utcHours + (utcMinutes / 60);
+    
+    // Initialize userAdjustedTime to the current time to prevent jumping
+    userAdjustedTime = new Date(currentRealTime);
     
     const clockRect = clockElement.getBoundingClientRect();
     const clockCenterX = clockRect.left + clockRect.width / 2;
@@ -246,9 +255,9 @@ function setupDraggableSun() {
     
     // Add "dragging" class to the sun
     sunElement.classList.add('dragging');
-  }
+}
   
-  function drag(e) {
+function drag(e) {
     if (!isDragging) return;
     e.preventDefault();
     
@@ -275,7 +284,7 @@ function setupDraggableSun() {
     let minutesPart = Math.round((hours - hoursPart) * 4) / 4; // Snap to quarters
     if (minutesPart === 1) {
       minutesPart = 0;
-      hours = hoursPart + 1;
+      hours = (hoursPart + 1) % 24; // Ensure we wrap around at 24
     } else {
       hours = hoursPart + minutesPart;
     }
