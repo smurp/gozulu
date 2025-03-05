@@ -1,4 +1,8 @@
-document.addEventListener('DOMContentLoaded', () => {
+// Store the real time and user-adjusted time separately
+let userAdjustedTime = null;
+let springBackAnimation = null;
+let isAnimatingSpringBack = false;
+let isDraggingSun = false;document.addEventListener('DOMContentLoaded', () => {
   // Create hour marks for 24-hour clock
   createHourMarks();
   
@@ -40,11 +44,56 @@ function createHourMarks() {
   }
 }
 
-// Store the real time and user-adjusted time separately
-let userAdjustedTime = null;
-let springBackAnimation = null;
-let isAnimatingSpringBack = false;
-let isDraggingSun = false;
+// Coordinate system conversion utilities
+// These make our angle calculations more explicit and maintainable
+
+// Convert from mouse/screen position to canonical angle
+// Given mouse coordinates relative to clock center, calculate angle
+// Returns angle in degrees where:
+// - 0° is at the top (12 o'clock)
+// - 90° is at the right (3 o'clock)
+// - 180° is at the bottom (6 o'clock)
+// - 270° is at the left (9 o'clock)
+// - Angles increase clockwise (like a standard clock)
+function pointToClockwiseDegrees(x, y) {
+  // atan2 gives angle in radians counterclockwise from east (-π to π)
+  const radians = Math.atan2(y, x);
+  
+  // Convert to degrees (0 is east, increasing counterclockwise)
+  let degrees = radians * (180 / Math.PI);
+  
+  // Adjust to clockwise and make 0 at north
+  // 1. Negate to make clockwise
+  // 2. Add 90 to make 0 at north
+  // 3. Normalize to 0-360 range
+  degrees = (-degrees + 90) % 360;
+  if (degrees < 0) degrees += 360;
+  
+  return degrees;
+}
+
+// Convert canonical clock degrees to UTC hours
+function clockDegreesToHours(degrees) {
+  // Clock has 360 degrees, 24 hours
+  // So each hour spans 15 degrees
+  return (degrees / 15) % 24;
+}
+
+// Convert UTC hours to canonical clock degrees
+function hoursToClockDegrees(hours) {
+  // Each hour is 15 degrees
+  return (hours * 15) % 360;
+}
+
+// Convert hours to sun position angle (in radians for cos/sin)
+function hoursToSunPositionRadians(hours) {
+  // Convert hours to degrees
+  const degrees = hoursToClockDegrees(hours);
+  // Convert to radians and adjust by 90° counterclockwise
+  // (needed because the angle is from east in CSS while our
+  // canonical angle is from north)
+  return (degrees - 90) * (Math.PI / 180);
+}
 
 function updateClock() {
   const now = new Date();
@@ -58,17 +107,32 @@ function updateClock() {
   const zuluSeconds = String(displayTime.getUTCSeconds()).padStart(2, '0');
   document.getElementById('zulu-time').textContent = `${zuluHours}:${zuluMinutes}:${zuluSeconds}Z`;
   
-  // Update local time display
-  // First get the offset between local time and UTC
-  const userTimezoneOffset = new Date().getTimezoneOffset(); // in minutes
+  // Update local time display based on user's timezone
+  const userTimezoneOffset = now.getTimezoneOffset(); // in minutes
   
-  // Create a new date that's adjusted for both UTC and the user's selected time (if any)
+  // Create a new date for local time display
   let localDisplayTime;
   if (userAdjustedTime) {
-    // When user has dragged the sun, adjust the local time accordingly
-    localDisplayTime = new Date(userAdjustedTime);
-    localDisplayTime.setMinutes(localDisplayTime.getMinutes() - userTimezoneOffset);
+    // When user has dragged the sun, we need to calculate what the local time would be
+    // based on their timezone offset and the adjusted UTC time
+    localDisplayTime = new Date(userAdjustedTime.getTime());
+    // The getTimezoneOffset returns minutes WEST of UTC, so we need to add (not subtract)
+    // For GMT+8, the offset would be -480 minutes (8 hours west of UTC)
+    localDisplayTime.setMinutes(localDisplayTime.getMinutes() + userTimezoneOffset);
+    
+    // Now manually add the timezone offset since the user is in GMT+8
+    // The direct timezone adjustment in minutes (for GMT+8, that's +480 minutes)
+    const timezoneOffsetHours = Math.abs(Math.floor(userTimezoneOffset / 60));
+    
+    if (userTimezoneOffset < 0) {
+      // For locations east of GMT (positive offset like GMT+8)
+      localDisplayTime.setHours(localDisplayTime.getHours() + timezoneOffsetHours);
+    } else {
+      // For locations west of GMT (negative offset like GMT-5)
+      localDisplayTime.setHours(localDisplayTime.getHours() - timezoneOffsetHours);
+    }
   } else {
+    // For real time, we can just use the current local time
     localDisplayTime = new Date();
   }
   
@@ -118,21 +182,22 @@ function updateSunPosition(terminatorAngle) {
   const clockElement = document.getElementById('clock');
   const radius = clockElement.offsetWidth / 2;
   
-  // Sun should be 90 degrees ahead of the terminator
-  // Think of it as: when the terminator angle is 180°, the sun should be at 90°
-  const sunAngle = (terminatorAngle - 90) * (Math.PI / 180); // Convert to radians
+  // Convert terminator angle to UTC hours
+  // Terminator angle is in clock degrees where 0° is at 12 o'clock
+  const terminatorDegrees = terminatorAngle % 360; 
+  const hours = clockDegreesToHours(terminatorDegrees - 180); // Subtract 180° because terminator is opposite sun
   
-  // Calculate position using trigonometry 
-  // Position the sun just at the edge of the Earth image
-  const sunRadius = radius * 0.95; // Position at 95% of radius to ensure visibility
-  const x = Math.cos(sunAngle) * sunRadius + radius;
-  const y = Math.sin(sunAngle) * sunRadius + radius;
+  // Position sun based on hours
+  const sunRadius = radius * 0.95;
+  const radians = hoursToSunPositionRadians(hours);
+  const x = Math.cos(radians) * sunRadius + radius;
+  const y = Math.sin(radians) * sunRadius + radius;
   
-  // Make sure the sun is visible by setting explicit z-index and visibility
+  // Make sure the sun is visible
   sunElement.style.left = `${x}px`;
   sunElement.style.top = `${y}px`;
   sunElement.style.visibility = 'visible';
-  sunElement.style.zIndex = '30'; // Ensure it's on top of everything
+  sunElement.style.zIndex = '30';
 }
 
 function getUserLocation() {
@@ -166,19 +231,18 @@ function updateUserLocationPin(latitude, longitude) {
   // Map latitude from 90 (center) to 0 (edge)
   const distanceFromCenter = (90 - latitude) / 90;
   
-  // Account for the map rotation of -135 degrees
-  // So 0° longitude is at the top (Greenwich)
-  // This means we need to adjust our angle calculation
+  // Calculate angle based on longitude
+  // Map longitude from -180 to 180 to a clockwise angle
+  // With 0° longitude at the top
+  // Remember the map is rotated 135 degrees counterclockwise
+  let angle = (longitude + 180 - 135) % 360;
   
-  // Calculate angle (longitude)
-  // Map longitude from -180 to 180 to 0 to 360
-  let angle = longitude + 180;
-  angle = (angle + 270) % 360; // Adjust so 0° longitude is at the top
-  angle = angle * (Math.PI / 180); // Convert to radians
+  // Convert to radians
+  const radians = angle * (Math.PI / 180);
   
-  // Calculate position for pin
-  const x = Math.cos(angle) * (radius * distanceFromCenter) + radius;
-  const y = Math.sin(angle) * (radius * distanceFromCenter) + radius;
+  // Calculate position
+  const x = Math.cos(radians) * (radius * distanceFromCenter) + radius;
+  const y = Math.sin(radians) * (radius * distanceFromCenter) + radius;
   
   pinElement.style.left = `${x}px`;
   pinElement.style.top = `${y}px`;
@@ -187,8 +251,8 @@ function updateUserLocationPin(latitude, longitude) {
   if (localTimeElement) {
     // Calculate position for local time text - further out from the center
     const textDistanceFactor = 1.3; // Position 30% outside the clock radius
-    const textX = Math.cos(angle) * (radius * textDistanceFactor) + radius;
-    const textY = Math.sin(angle) * (radius * textDistanceFactor) + radius;
+    const textX = Math.cos(radians) * (radius * textDistanceFactor) + radius;
+    const textY = Math.sin(radians) * (radius * textDistanceFactor) + radius;
     
     localTimeElement.style.left = `${textX}px`;
     localTimeElement.style.top = `${textY}px`;
@@ -268,7 +332,7 @@ function drag(e) {
     const y = e.clientY || e.touches[0].clientY;
     
     // Calculate new angle
-    let angle = 180 + (Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI));
+    let angle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
     
     // Convert angle to hours
     // Angle increases clockwise from right (3 o'clock position)
