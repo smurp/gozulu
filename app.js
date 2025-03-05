@@ -109,27 +109,24 @@ function updateClock() {
   }
 }
 
+// Function to position the sun based on UTC time
 function updateSunPosition(terminatorAngle) {
-  // Skip updating if we're currently animating spring back
-  if (isAnimatingSpringBack) return;
+  // Skip updating if we're currently animating spring back or dragging
+  if (isAnimatingSpringBack || isDraggingSun) return;
   
   const sunElement = document.getElementById('sun-position');
   const clockElement = document.getElementById('clock');
   const radius = clockElement.offsetWidth / 2;
   
-  // Place sun at the edge of the clock face
-  // The sun should be on the opposite side from the dark part of the terminator
-  // Adjust by 90 degrees to position correctly relative to terminator
-  const sunAngle = (terminatorAngle - 90) * (Math.PI / 180); // Convert to radians and adjust
+  // Sun should be 90 degrees ahead of the terminator
+  // Think of it as: when the terminator angle is 180°, the sun should be at 90°
+  const sunAngle = (terminatorAngle - 90) * (Math.PI / 180); // Convert to radians
   
   // Calculate position using trigonometry 
   // Position the sun just at the edge of the Earth image
   const sunRadius = radius * 0.95; // Position at 95% of radius to ensure visibility
   const x = Math.cos(sunAngle) * sunRadius + radius;
   const y = Math.sin(sunAngle) * sunRadius + radius;
-  
-  // Store the current position in a data attribute for the drag functionality
-  sunElement.dataset.angle = terminatorAngle - 90;
   
   // Make sure the sun is visible by setting explicit z-index and visibility
   sunElement.style.left = `${x}px`;
@@ -271,7 +268,7 @@ function drag(e) {
     const y = e.clientY || e.touches[0].clientY;
     
     // Calculate new angle
-    let angle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
+    let angle = 180 + (Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI));
     
     // Convert angle to hours
     // Angle increases clockwise from right (3 o'clock position)
