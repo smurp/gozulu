@@ -1,3 +1,4 @@
+let mapOffsetToGreenwichDegrees = 135;
 function positionLocalTimeByTimezone() {
   const localTimeElement = document.getElementById('local-time');
   if (!localTimeElement || userTimezoneOffsetHours === null) return;
@@ -11,7 +12,7 @@ function positionLocalTimeByTimezone() {
   let angleDegrees = -userTimezoneOffsetHours * 15; // Negative because hours increase clockwise
   
   // Ensure the angle is between 0 and 360
-  angleDegrees = (angleDegrees + 360) % 360;
+  angleDegrees = (angleDegrees + 270) % 360;
   
   // Convert to radians
   const radians = angleDegrees * (Math.PI / 180);
@@ -301,7 +302,7 @@ function updateUserLocationPin(latitude, longitude) {
   // Map longitude from -180 to 180 to a clockwise angle
   // With 0° longitude at the top
   // Remember the map is rotated 135 degrees counterclockwise
-  let angle = (longitude + 180 - 135) % 360;
+  let angle = (longitude + 180 - mapOffsetToGreenwichDegrees) % 360;
   
   // Convert to radians
   const radians = angle * (Math.PI / 180);
