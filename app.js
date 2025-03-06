@@ -289,7 +289,7 @@ function updateClock() {
   
   // Convert hours to clock degrees
   const sunDegrees = hoursToClockDegrees(utcTimeForTerminator);
-  const terminatorDegrees = (sunDegrees + 180) % 360; // Add 180° because terminator is opposite the sun
+  const terminatorDegrees = (sunDegrees) % 360; // Add 180° because terminator is opposite the sun
   
   document.getElementById('terminator').style.transform = `rotate(${terminatorDegrees}deg)`;
   
@@ -313,7 +313,7 @@ function updateSunPosition(terminatorAngle) {
   const terminatorDegrees = terminatorAngle % 360; 
   
   // The sun is opposite to the terminator (180 degrees difference)
-  const sunDegrees = (terminatorDegrees + 180) % 360;
+  const sunDegrees = (terminatorDegrees) % 360;
   const hours = clockDegreesToHours(sunDegrees);
   
   // Position sun based on hours
