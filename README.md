@@ -54,7 +54,7 @@ goZulu/
 ├── manifest.json     # PWA configuration
 ├── favicon.ico       # Site favicon
 ├── images/
-│   └── earth-north-pole.png  # Earth image
+│   └── earth-north-pole.jpg  # Earth image
 └── icons/
     ├── icon-192x192.png      # App icons
     └── icon-512x512.png
