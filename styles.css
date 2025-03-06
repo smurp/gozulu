@@ -44,9 +44,10 @@ body {
 }
 
 /* Common corner button styles */
-.why-button,
+.fund-button,
 .help-button,
-.fund-button {
+.next-button,
+.why-button {
   position: absolute;
   width: 70px;
   height: 70px;
@@ -80,10 +81,16 @@ body {
   left: -15px;
 }
 
+.bottom-right {
+  bottom: -15px;
+  right: -15px;
+}
+
 /* Hover effect for all corner buttons */
-.why-button:hover,
+.fund-button:hover,
 .help-button:hover,
-.fund-button:hover {
+.next-button:hover,
+.why-button:hover {
   transform: scale(1.1);
   filter: brightness(1.2);
 }
@@ -316,9 +323,10 @@ body {
     font-size: 38px;
   }
   
-  .why-button,
+  .fund-button,
   .help-button,
-  .fund-button {
+  .next-button,
+  .why-button {
     width: 80px;
     height: 80px;
   }
@@ -364,9 +372,10 @@ body {
     margin-top: 0;
   }
   
-  .why-button,
+  .fund-button,
   .help-button,
-  .fund-button {
+  .next-button,
+  .why-button {
     width: 60px;
     height: 60px;
   }
