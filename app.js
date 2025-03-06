@@ -1,3 +1,4 @@
+let sunScale = 0.91;
 let mapOffsetToGreenwichDegrees = 135;
 function positionLocalTimeByTimezone() {
   const localTimeElement = document.getElementById('local-time');
@@ -92,12 +93,23 @@ function createHourMarks() {
     
     // Calculate rotation (15 degrees per hour, with 0/24 at the top)
     const rotation = i * 15;
-    hourMark.style.transform = `rotate(${rotation}deg) translateX(-50%)`;
-    hourMark.style.transformOrigin = '50% 50%';
+    const radians = rotation * (Math.PI / 180);
     
-    // Position at the edge of the clock
-    hourMark.style.top = '0';
-    hourMark.style.height = '10px';
+    // Calculate position slightly beyond the circle's edge
+    // Use 50% as the center point, then calculate the position beyond the edge
+    const radius = 50.5; // 50.5% of the container width/height (slightly outside)
+    
+    // Calculate x and y position (in percentage)
+    const x = 50 + radius * Math.sin(radians);
+    const y = 49 - radius * Math.cos(radians); // unclear why this 49 hack needed
+    
+    // Position the mark
+    hourMark.style.position = 'absolute';
+    hourMark.style.top = `${y}%`;
+    hourMark.style.left = `${x}%`;
+    
+    // Rotate the triangle to point toward the center (inward)
+    hourMark.style.transform = `translate(-50%, 0) rotate(${rotation+180}deg)`;
     
     hourMarksContainer.appendChild(hourMark);
   }
@@ -172,7 +184,7 @@ function updateClock() {
       const timezoneMap = {
         'PST': -8*60, 'PDT': -7*60, 'MST': -7*60, 'MDT': -6*60,
         'CST': -6*60, 'CDT': -5*60, 'EST': -5*60, 'EDT': -4*60,
-        'UTC': 0, 'GMT': 0, 'BST': 1*60, 'CET': 1*60, 
+        'UTC': 0, 'GMT': 0, 'BST': 1*60, 'CET': 1*60,
         'CEST': 2*60, 'EET': 2*60, 'EEST': 3*60, 'MSK': 3*60,
         'IST': 5.5*60, 'CST_ASIA': 8*60, 'JST': 9*60, 'AEST': 10*60,
         'NZST': 12*60
@@ -305,7 +317,7 @@ function updateSunPosition(terminatorAngle) {
   const hours = clockDegreesToHours(sunDegrees);
   
   // Position sun based on hours
-  const sunRadius = radius * 0.95;
+  const sunRadius = radius * sunScale;
   const radians = hoursToSunPositionRadians(hours);
   const x = Math.cos(radians) * sunRadius + radius;
   const y = Math.sin(radians) * sunRadius + radius;
@@ -538,7 +550,7 @@ function drag(e) {
         const sunElement = document.getElementById('sun-position');
         
         const sunAngle = (currentAngle - 90) * (Math.PI / 180);
-        const sunRadius = radius * 0.95;
+        const sunRadius = radius * sunScale;
         const x = Math.cos(sunAngle) * sunRadius + radius;
         const y = Math.sin(sunAngle) * sunRadius + radius;
         

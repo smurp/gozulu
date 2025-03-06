@@ -67,8 +67,8 @@ body {
 
 #sun-position {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 35px;
+  height: 35px;
   background-color: #FFD700;
   border-radius: 50%;
   box-shadow: 0 0 15px 10px rgba(255, 215, 0, 0.7);
@@ -117,12 +117,12 @@ body {
 
 .hour-mark {
   position: absolute;
-  width: 2px;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.5);
-  top: 0;
-  left: 50%;
-  transform-origin: bottom center;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid rgba(255, 255, 255, 0.5);
+  /* Triangle points downward by default (will be rotated in JS) */
 }
 
 /* Greenwich line removed */
@@ -183,8 +183,8 @@ body {
   }
   
   #sun-position {
-    width: 20px;
-    height: 20px;
+    width: 35px;
+    height: 35px;
   }
   
   .hour-mark {
