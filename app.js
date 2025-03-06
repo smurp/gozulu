@@ -83,20 +83,9 @@ function createHourMarks() {
 // - 270° is at the left (9 o'clock)
 // - Angles increase clockwise (like a standard clock)
 function pointToClockwiseDegrees(x, y) {
-  // atan2 gives angle in radians counterclockwise from east (-π to π)
-  const radians = Math.atan2(y, x);
-  
-  // Convert to degrees (0 is east, increasing counterclockwise)
-  let degrees = radians * (180 / Math.PI);
-  
-  // Adjust to clockwise and make 0 at north
-  // 1. Negate to make clockwise
-  // 2. Add 90 to make 0 at north
-  // 3. Normalize to 0-360 range
-  degrees = (-degrees + 90) % 360;
-  if (degrees < 0) degrees += 360;
-  
-  return degrees;
+  // Calculate angle using Math.atan2 and add 180 degrees
+  // This directly gives us the correct orientation for our clock face
+  return 180 + (Math.atan2(y, x) * (180 / Math.PI));
 }
 
 // Convert canonical clock degrees to UTC hours
@@ -312,7 +301,7 @@ function updateUserLocationPin(latitude, longitude) {
   // Map longitude from -180 to 180 to a clockwise angle
   // With 0° longitude at the top
   // Remember the map is rotated 135 degrees counterclockwise
-  let angle = (longitude +180  - 135) % 360;
+  let angle = (longitude + 180 - 135) % 360;
   
   // Convert to radians
   const radians = angle * (Math.PI / 180);
@@ -379,7 +368,6 @@ function startDrag(e) {
     
     // Calculate starting angle
     startAngle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
-    //startAngle = startAngle + 180;
     
     // Add "dragging" class to the sun
     sunElement.classList.add('dragging');
@@ -425,7 +413,7 @@ function drag(e) {
     
     // Update global adjusted time
     userAdjustedTime = adjustedTime;
-  
+    
     // Update clock
     updateClock();
   }
