@@ -83,6 +83,17 @@
     
     helpButton.addEventListener('click', () => {
       helpDialog.showModal();
+      
+      // Ensure dialog is centered
+      const viewportHeight = window.innerHeight;
+      const dialogHeight = helpDialog.offsetHeight;
+      
+      // Only apply custom positioning if needed (fallback for browsers that don't support dialog centering)
+      if (dialogHeight > 0) {
+        const topPosition = Math.max(0, (viewportHeight - dialogHeight) / 2);
+        helpDialog.style.top = `${topPosition}px`;
+        helpDialog.style.transform = 'translateX(-50%)';
+      }
     });
     
     closeDialog.addEventListener('click', () => {
