@@ -39,6 +39,10 @@ let userTimezoneOffsetHours = null;document.addEventListener('DOMContentLoaded',
   
   // Update every second
   setInterval(updateClock, 1000);
+
+  // Still position local time based on timezone
+  userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
+  positionLocalTimeByTimezone();
   
   // Get user's location (if permitted)
   getUserLocation();
@@ -251,9 +255,6 @@ function getUserLocation() {
         pinElement.style.display = 'block';
       }
       
-      // Position local time based on timezone offset
-      positionLocalTimeByTimezone();
-      
     }, error => {
       console.error('Error getting user location:', error);
       
@@ -262,10 +263,6 @@ function getUserLocation() {
       if (pinElement) {
         pinElement.style.display = 'none';
       }
-      
-      // Still position local time based on timezone
-      userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
-      positionLocalTimeByTimezone();
     });
   } else {
     console.log('Geolocation not supported');
@@ -275,10 +272,6 @@ function getUserLocation() {
     if (pinElement) {
       pinElement.style.display = 'none';
     }
-    
-    // Still position local time based on timezone
-    userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
-    positionLocalTimeByTimezone();
   }
 }
 
