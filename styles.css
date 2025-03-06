@@ -43,6 +43,37 @@ body {
   text-shadow: 0 0 8px rgba(0, 0, 255, 0.7);
 }
 
+.title-link {
+  color: #FFFFFF;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+  padding-bottom: 3px;
+  cursor: pointer;
+}
+
+.title-link::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  bottom: 0;
+  left: 0;
+  background-color: #4D88FF;
+  transform: scaleX(0);
+  transform-origin: bottom center;
+  transition: transform 0.3s ease-out;
+}
+
+.title-link:hover {
+  color: #B2CCFF;
+  text-shadow: 0 0 12px rgba(0, 100, 255, 0.9);
+}
+
+.title-link:hover::after {
+  transform: scaleX(1);
+}
+
 /* Common corner button styles */
 .fund-button,
 .help-button,
