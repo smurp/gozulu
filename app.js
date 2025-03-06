@@ -613,3 +613,35 @@ function adjustClockSize() {
   
   updateClock();
 }
+
+// Add this function to the app.js file
+async function updateVersionDisplay() {
+  try {
+    // Fetch the manifest.json file
+    const response = await fetch('manifest.json');
+    if (!response.ok) {
+      console.error('Failed to fetch manifest.json:', response.statusText);
+      return;
+    }
+    
+    const manifestData = await response.json();
+    
+    // Get the version element
+    const versionElement = document.getElementById('version-display');
+    
+    // Update the version display if we have version info
+    if (manifestData && manifestData.version) {
+      versionElement.textContent = `v${manifestData.version}`;
+    }
+  } catch (error) {
+    console.error('Error fetching version from manifest:', error);
+  }
+}
+
+// Add this to the DOMContentLoaded event listener in app.js
+document.addEventListener('DOMContentLoaded', () => {
+  // Existing code...
+  
+  // Update version display
+  updateVersionDisplay();
+});
