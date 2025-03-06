@@ -45,7 +45,7 @@ let userTimezoneOffsetHours = null;document.addEventListener('DOMContentLoaded',
   positionLocalTimeByTimezone();
   
   // Get user's location (if permitted)
-  getUserLocation();
+  //getAndShowUserLocation();
   
   // Setup draggable sun
   setupDraggableSun();
@@ -235,7 +235,7 @@ function updateSunPosition(terminatorAngle) {
   sunElement.style.zIndex = '30';
 }
 
-function getUserLocation() {
+function getAndShowUserLocation() {
   if ('geolocation' in navigator) {
     navigator.geolocation.getCurrentPosition(position => {
       const { latitude, longitude } = position.coords;
