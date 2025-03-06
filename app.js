@@ -1,8 +1,35 @@
-// Store the real time and user-adjusted time separately
+function positionLocalTimeByTimezone() {
+  const localTimeElement = document.getElementById('local-time');
+  if (!localTimeElement || userTimezoneOffsetHours === null) return;
+  
+  const clockElement = document.getElementById('clock');
+  const radius = clockElement.offsetWidth / 2;
+  
+  // Position local time based on timezone offset
+  // Convert the offset hours to degrees (each hour is 15 degrees)
+  // 0 (GMT) is at top (0 degrees), positive offsets go clockwise
+  let angleDegrees = -userTimezoneOffsetHours * 15; // Negative because hours increase clockwise
+  
+  // Ensure the angle is between 0 and 360
+  angleDegrees = (angleDegrees + 360) % 360;
+  
+  // Convert to radians
+  const radians = angleDegrees * (Math.PI / 180);
+  
+  // Position local time outside the clock face
+  const textDistanceFactor = 1.3; // Position 30% outside the clock radius
+  const textX = Math.cos(radians) * (radius * textDistanceFactor) + radius;
+  const textY = Math.sin(radians) * (radius * textDistanceFactor) + radius;
+  
+  localTimeElement.style.left = `${textX}px`;
+  localTimeElement.style.top = `${textY}px`;
+}// Store the real time and user-adjusted time separately
 let userAdjustedTime = null;
 let springBackAnimation = null;
 let isAnimatingSpringBack = false;
-let isDraggingSun = false;document.addEventListener('DOMContentLoaded', () => {
+let isDraggingSun = false;// Global variables to track user's location and timezone
+let userLocation = null;
+let userTimezoneOffsetHours = null;document.addEventListener('DOMContentLoaded', () => {
   // Create hour marks for 24-hour clock
   createHourMarks();
   
@@ -218,21 +245,57 @@ function getUserLocation() {
   if ('geolocation' in navigator) {
     navigator.geolocation.getCurrentPosition(position => {
       const { latitude, longitude } = position.coords;
+      // Store the user's location globally
+      userLocation = { latitude, longitude };
+      
+      // Calculate and store the user's timezone offset in hours
+      const offsetMinutes = new Date().getTimezoneOffset();
+      userTimezoneOffsetHours = -offsetMinutes / 60; // Negate because getTimezoneOffset returns minutes west of UTC
+      
+      // Now that we have location, show the pin and update local time position
       updateUserLocationPin(latitude, longitude);
+      
+      // Make pin visible now that we have a location
+      const pinElement = document.getElementById('user-location-pin');
+      if (pinElement) {
+        pinElement.style.display = 'block';
+      }
+      
+      // Position local time based on timezone offset
+      positionLocalTimeByTimezone();
+      
     }, error => {
       console.error('Error getting user location:', error);
-      // Set a default position if location access is denied
-      updateUserLocationPin(0, 0); // Default to center (equator at Greenwich)
+      
+      // Hide the pin if location access is denied
+      const pinElement = document.getElementById('user-location-pin');
+      if (pinElement) {
+        pinElement.style.display = 'none';
+      }
+      
+      // Still position local time based on timezone
+      userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
+      positionLocalTimeByTimezone();
     });
   } else {
     console.log('Geolocation not supported');
-    updateUserLocationPin(0, 0); // Default to center
+    
+    // Hide the pin if geolocation is not supported
+    const pinElement = document.getElementById('user-location-pin');
+    if (pinElement) {
+      pinElement.style.display = 'none';
+    }
+    
+    // Still position local time based on timezone
+    userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
+    positionLocalTimeByTimezone();
   }
 }
 
 function updateUserLocationPin(latitude, longitude) {
+  if (!userLocation) return; // Don't update if location isn't available
+  
   const pinElement = document.getElementById('user-location-pin');
-  const localTimeElement = document.getElementById('local-time');
   const clockElement = document.getElementById('clock');
   const radius = clockElement.offsetWidth / 2;
   
@@ -249,7 +312,7 @@ function updateUserLocationPin(latitude, longitude) {
   // Map longitude from -180 to 180 to a clockwise angle
   // With 0° longitude at the top
   // Remember the map is rotated 135 degrees counterclockwise
-  let angle = (longitude + 180 - 135) % 360;
+  let angle = (longitude +180  - 135) % 360;
   
   // Convert to radians
   const radians = angle * (Math.PI / 180);
@@ -260,17 +323,6 @@ function updateUserLocationPin(latitude, longitude) {
   
   pinElement.style.left = `${x}px`;
   pinElement.style.top = `${y}px`;
-  
-  // Position local time display radially outside the clock face
-  if (localTimeElement) {
-    // Calculate position for local time text - further out from the center
-    const textDistanceFactor = 1.3; // Position 30% outside the clock radius
-    const textX = Math.cos(radians) * (radius * textDistanceFactor) + radius;
-    const textY = Math.sin(radians) * (radius * textDistanceFactor) + radius;
-    
-    localTimeElement.style.left = `${textX}px`;
-    localTimeElement.style.top = `${textY}px`;
-  }
 }
 
 function getTimeZoneAbbreviation() {
@@ -327,7 +379,7 @@ function startDrag(e) {
     
     // Calculate starting angle
     startAngle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
-    startAngle = startAngle - 180;
+    //startAngle = startAngle + 180;
     
     // Add "dragging" class to the sun
     sunElement.classList.add('dragging');
@@ -347,8 +399,7 @@ function drag(e) {
     const y = e.clientY || e.touches[0].clientY;
     
     // Calculate new angle
-    let angle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
-    angle = angle - 180;
+    let angle = 180 + (Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI));
     
     // Convert angle to hours
     // Angle increases clockwise from right (3 o'clock position)
@@ -374,7 +425,7 @@ function drag(e) {
     
     // Update global adjusted time
     userAdjustedTime = adjustedTime;
-    
+  
     // Update clock
     updateClock();
   }
@@ -472,14 +523,13 @@ function adjustClockSize() {
   // Ensure our clock's positioning context is correct
   clockElement.style.position = 'relative';
   
-  // Update sun and pin positions after resize
-  // We need to update the getUserLocation to reflect the new size
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(position => {
-      updateUserLocationPin(position.coords.latitude, position.coords.longitude);
-    }, error => {
-      updateUserLocationPin(0, 0); // Default to center on error
-    });
+  // Update positioning of elements
+  if (userLocation) {
+    updateUserLocationPin(userLocation.latitude, userLocation.longitude);
+  }
+  
+  if (userTimezoneOffsetHours !== null) {
+    positionLocalTimeByTimezone();
   }
   
   updateClock();

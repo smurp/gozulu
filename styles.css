@@ -78,7 +78,8 @@ body {
   transition: box-shadow 0.2s ease;
 }
 
-#sun-position:active {
+#sun-position:active,
+#sun-position.dragging {
   cursor: grabbing;
   box-shadow: 0 0 20px 15px rgba(255, 215, 0, 0.8);
 }
@@ -132,6 +133,7 @@ body {
   height: 20px;
   transform: translate(-50%, -50%);
   z-index: 15;
+  display: none; /* Initially hidden until we have location */
 }
 
 .pin-point {
