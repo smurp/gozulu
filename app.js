@@ -251,7 +251,7 @@ function updateClock() {
     }
   }
   
-  const localHours = String(localDisplayTime.getHours()).padStart(2, '0');
+  const localHours = String(localDisplayTime.getHours()); //.padStart(2, '0');
   const localMinutes = String(localDisplayTime.getMinutes()).padStart(2, '0');
   const localSeconds = String(localDisplayTime.getSeconds()).padStart(2, '0');
   
@@ -268,7 +268,7 @@ function updateClock() {
   }
   
   // Update with seconds
-  localTimeElement.textContent = `${localHours}:${localMinutes}:${localSeconds} ${timeZoneAbbr}`;
+  localTimeElement.textContent = `${localHours}:${localMinutes} ${timeZoneAbbr}`;
   
   // Update local time position if we have a timezone offset
   if (userTimezoneOffsetHours !== null) {
