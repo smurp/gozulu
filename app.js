@@ -585,19 +585,21 @@ function adjustClockSize() {
   const container = document.querySelector('.container');
   const clockElement = document.getElementById('clock');
   
-  // Get available space (accounting for the time displays)
-  const availableHeight = window.innerHeight - 150; // Subtract space for time displays
-  const availableWidth = window.innerWidth - 40; // Account for padding
+  // Get the container size (already set to minimum 500px in CSS)
+  const containerSize = Math.max(
+    500,
+    Math.min(
+      window.innerHeight - 40, 
+      window.innerWidth - 40,
+      Math.min(window.innerHeight, window.innerWidth) * 0.9
+    )
+  );
   
-  // Determine the maximum size that fits the available space
-  const maxSize = Math.min(availableHeight, availableWidth, 600); // Cap at 600px
-  
-  // Apply the new size
-  clockElement.style.width = `${maxSize}px`;
-  clockElement.style.height = `${maxSize}px`;
-  
-  // Ensure our clock's positioning context is correct
-  clockElement.style.position = 'relative';
+  // For very small screens, we rely on CSS media queries
+  if (window.innerWidth > 550) {
+    container.style.width = `${containerSize}px`;
+    container.style.height = `${containerSize}px`;
+  }
   
   // Update positioning of elements
   if (userLocation) {
