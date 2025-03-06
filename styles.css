@@ -67,8 +67,8 @@ body {
 
 #sun-position {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 35px;
+  height: 35px;
   background-color: #FFD700;
   border-radius: 50%;
   box-shadow: 0 0 15px 10px rgba(255, 215, 0, 0.7);
@@ -183,8 +183,8 @@ body {
   }
   
   #sun-position {
-    width: 20px;
-    height: 20px;
+    width: 35px;
+    height: 35px;
   }
   
   .hour-mark {
