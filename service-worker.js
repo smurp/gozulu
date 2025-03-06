@@ -5,7 +5,7 @@ const ASSETS_TO_CACHE = [
   '/styles.css',
   '/app.js',
   '/manifest.json',
-  '/images/earth-north-pole.png',
+  '/images/earth-north-pole.jpg',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/favicon.ico'
