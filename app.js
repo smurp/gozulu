@@ -1,3 +1,4 @@
+let sunScale = 0.91;
 let mapOffsetToGreenwichDegrees = 135;
 function positionLocalTimeByTimezone() {
   const localTimeElement = document.getElementById('local-time');
@@ -305,7 +306,7 @@ function updateSunPosition(terminatorAngle) {
   const hours = clockDegreesToHours(sunDegrees);
   
   // Position sun based on hours
-  const sunRadius = radius * 0.95;
+  const sunRadius = radius * sunScale;
   const radians = hoursToSunPositionRadians(hours);
   const x = Math.cos(radians) * sunRadius + radius;
   const y = Math.sin(radians) * sunRadius + radius;
@@ -538,7 +539,7 @@ function drag(e) {
         const sunElement = document.getElementById('sun-position');
         
         const sunAngle = (currentAngle - 90) * (Math.PI / 180);
-        const sunRadius = radius * 0.95;
+        const sunRadius = radius * sunScale;
         const x = Math.cos(sunAngle) * sunRadius + radius;
         const y = Math.sin(sunAngle) * sunRadius + radius;
         
