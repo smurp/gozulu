@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Basic right-angled triangle - rotated 90 degrees clockwise -->
+  <g transform="rotate(90, 50, 50)">
+    <!-- Triangle with rounded corners -->
+    <path d="M 10,0 
+             L 90,0 
+             A 10,10 0 0 1 100,10 
+             L 10,100 
+             A 10,10 0 0 1 0,90 
+             L 0,10 
+             A 10,10 0 0 1 10,0 
+             Z" 
+          fill="#5D4037" />
+    
+    <!-- Text "Help?" -->
+    <text x="50" y="45"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+          font-size="20" 
+          font-weight="bold" 
+          fill="#FFFFFF" 
+          text-anchor="middle"
+          transform="rotate(-45, 50, 45)">
+      Help!
+    </text>
+  </g>
+</svg>

@@ -13,7 +13,28 @@
 <body>
   <div class="container">
     <h1 class="title">GoZulu</h1>
-    <a href="https://noosphere.org/blog/gozulu/" class="why-button" target="_blank" rel="noopener noreferrer">Why?</a>
+    
+    <!-- Removed the old Why? button from here -->
+    
+    <!-- Added Why button to top left -->
+    <a href="https://noosphere.org/blog/gozulu/" class="why-button top-left" target="_blank" rel="noopener noreferrer">
+      <img src="images/why-button.svg" alt="Why?" class="corner-button-img">
+    </a>
+    
+    <!-- Added Help button to top right -->
+    <button class="help-button top-right" id="helpButton">
+      <img src="images/help-button.svg" alt="Help!" class="corner-button-img">
+    </button>
+    
+    <!-- Added Fund button to bottom left -->
+    <a href="https://noosphere.org/blog/fund/" class="fund-button bottom-left" target="_blank" rel="noopener noreferrer">
+      <img src="images/fund-button.svg" alt="Fund❤️" class="corner-button-img">
+    </a>
+
+    <!-- Added Next button to bottom right -->
+    <a href="https://noosphere.org/blog/gozulu-next/" class="next-button bottom-right" target="_blank" rel="noopener noreferrer">
+      <img src="images/next-button.svg" alt="Next?" class="corner-button-img">
+    </a>
     
     <div id="zulu-time" class="time-display">00:00:00Z</div>
     
@@ -29,14 +50,30 @@
       </div>
       
       <div id="hour-marks"></div>
-      
-      <!-- Greenwich meridian line removed -->
     </div>
     
     <div id="version-display">v0.3.2</div>
     
-    <!-- Local time is now positioned dynamically via JavaScript -->
+    <!-- Local time is positioned dynamically via JavaScript -->
   </div>
+  
+  <!-- Help dialog -->
+  <dialog id="helpDialog" class="help-dialog">
+    <div class="dialog-content">
+      <p>
+        We are looking down at the top of the Earth, with Greenwich England always at the top.
+        Greenwich Mean Time (GMT aka ZULU) is displayed above the globe.
+        The little yellow Sun moves around the Earth in real time.
+        The position of the Sun represents the current time.
+        When the Sun is at the top, that means it is Noon in Greenwich.
+        The daylight and night sides of the Earth are shown.
+        Your own local time appears over the center of your timezone.
+        Dragging the Sun lets you see how ZULU time and the time in your timezone relate.
+        This is handy for figuring out which ZULU times are convenient for people in different parts of the world.
+      </p>
+      <button id="closeDialog" class="close-button">Close</button>
+    </div>
+  </dialog>
 
   <script src="app.js"></script>
   <script>
@@ -46,6 +83,43 @@
         .then(reg => console.log('Service Worker registered', reg))
         .catch(err => console.error('Service Worker registration failed', err));
     }
+    
+    // Setup dialog functionality
+    const helpButton = document.getElementById('helpButton');
+    const helpDialog = document.getElementById('helpDialog');
+    const closeDialog = document.getElementById('closeDialog');
+    
+    helpButton.addEventListener('click', () => {
+      helpDialog.showModal();
+      
+      // Ensure dialog is centered
+      const viewportHeight = window.innerHeight;
+      const dialogHeight = helpDialog.offsetHeight;
+      
+      // Only apply custom positioning if needed (fallback for browsers that don't support dialog centering)
+      if (dialogHeight > 0) {
+        const topPosition = Math.max(0, (viewportHeight - dialogHeight) / 2);
+        helpDialog.style.top = `${topPosition}px`;
+        helpDialog.style.transform = 'translateX(-50%)';
+      }
+    });
+    
+    closeDialog.addEventListener('click', () => {
+      helpDialog.close();
+    });
+    
+    // Close dialog if clicking outside of it
+    helpDialog.addEventListener('click', (e) => {
+      const dialogDimensions = helpDialog.getBoundingClientRect();
+      if (
+        e.clientX < dialogDimensions.left ||
+        e.clientX > dialogDimensions.right ||
+        e.clientY < dialogDimensions.top ||
+        e.clientY > dialogDimensions.bottom
+      ) {
+        helpDialog.close();
+      }
+    });
   </script>
 </body>
 </html>
