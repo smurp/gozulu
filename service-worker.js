@@ -6,6 +6,9 @@ const ASSETS_TO_CACHE = [
   '/app.js',
   '/manifest.json',
   '/images/earth-north-pole.jpg',
+  '/images/why-button.svg',
+  '/images/help-button.svg',
+  '/images/fund-button.svg',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/favicon.ico'

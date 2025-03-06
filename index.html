@@ -13,7 +13,23 @@
 <body>
   <div class="container">
     <h1 class="title">GoZulu</h1>
-    <a href="https://noosphere.org/blog/gozulu/" class="why-button" target="_blank" rel="noopener noreferrer">Why?</a>
+    
+    <!-- Removed the old Why? button from here -->
+    
+    <!-- Added Why button to top left -->
+    <a href="https://noosphere.org/blog/gozulu/" class="why-button top-left" target="_blank" rel="noopener noreferrer">
+      <img src="images/why-button.svg" alt="Why?" class="corner-button-img">
+    </a>
+    
+    <!-- Added Help button to top right -->
+    <button class="help-button top-right" id="helpButton">
+      <img src="images/help-button.svg" alt="Help!" class="corner-button-img">
+    </button>
+    
+    <!-- Added Fund button to bottom left -->
+    <a href="https://noosphere.org/blog/fund/" class="fund-button bottom-left" target="_blank" rel="noopener noreferrer">
+      <img src="images/fund-button.svg" alt="Fund❤️" class="corner-button-img">
+    </a>
     
     <div id="zulu-time" class="time-display">00:00:00Z</div>
     
@@ -29,14 +45,27 @@
       </div>
       
       <div id="hour-marks"></div>
-      
-      <!-- Greenwich meridian line removed -->
     </div>
     
     <div id="version-display">v0.3.2</div>
     
-    <!-- Local time is now positioned dynamically via JavaScript -->
+    <!-- Local time is positioned dynamically via JavaScript -->
   </div>
+  
+  <!-- Help dialog -->
+  <dialog id="helpDialog" class="help-dialog">
+    <div class="dialog-content">
+      <p>
+        We are looking down at the top of the Earth, with Greenwich England always at the top. 
+        GMT (aka ZULU) is displayed above the globe. The little yellow sun moves around the Earth, 
+        always in the currently correct position. The daylight and night sides of the Earth are shown. 
+        Your own local time appears over the center of your timezone. Dragging the sun lets you 
+        explore how ZULU time and the time in your timezone relate. This is handy for figuring out 
+        which ZULU times are convenient for people in different parts of the world.
+      </p>
+      <button id="closeDialog" class="close-button">Close</button>
+    </div>
+  </dialog>
 
   <script src="app.js"></script>
   <script>
@@ -46,6 +75,32 @@
         .then(reg => console.log('Service Worker registered', reg))
         .catch(err => console.error('Service Worker registration failed', err));
     }
+    
+    // Setup dialog functionality
+    const helpButton = document.getElementById('helpButton');
+    const helpDialog = document.getElementById('helpDialog');
+    const closeDialog = document.getElementById('closeDialog');
+    
+    helpButton.addEventListener('click', () => {
+      helpDialog.showModal();
+    });
+    
+    closeDialog.addEventListener('click', () => {
+      helpDialog.close();
+    });
+    
+    // Close dialog if clicking outside of it
+    helpDialog.addEventListener('click', (e) => {
+      const dialogDimensions = helpDialog.getBoundingClientRect();
+      if (
+        e.clientX < dialogDimensions.left ||
+        e.clientX > dialogDimensions.right ||
+        e.clientY < dialogDimensions.top ||
+        e.clientY > dialogDimensions.bottom
+      ) {
+        helpDialog.close();
+      }
+    });
   </script>
 </body>
 </html>
