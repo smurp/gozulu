@@ -24,13 +24,40 @@ function positionLocalTimeByTimezone() {
   
   localTimeElement.style.left = `${textX}px`;
   localTimeElement.style.top = `${textY}px`;
-}// Store the real time and user-adjusted time separately
+}
+
+// Store the real time and user-adjusted time separately
 let userAdjustedTime = null;
 let springBackAnimation = null;
 let isAnimatingSpringBack = false;
-let isDraggingSun = false;// Global variables to track user's location and timezone
+let isDraggingSun = false;
+
+// Global variables to track user's location and timezone
 let userLocation = null;
-let userTimezoneOffsetHours = null;document.addEventListener('DOMContentLoaded', () => {
+let userTimezoneOffsetHours = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Check for URL parameter override for timezone immediately
+  const urlParams = new URLSearchParams(window.location.search);
+  let overrideTimezone = urlParams.get('local');
+  
+  if (overrideTimezone) {
+    // Update the page title to reflect the custom timezone
+    document.title = `GoZulu - ${overrideTimezone} Time`;
+    
+    // Optional: Add a visual indicator that we're using a custom timezone
+    const container = document.querySelector('.container');
+    const timezoneIndicator = document.createElement('div');
+    timezoneIndicator.className = 'timezone-indicator';
+    timezoneIndicator.textContent = `Using ${overrideTimezone} timezone`;
+    timezoneIndicator.style.position = 'absolute';
+    timezoneIndicator.style.top = '5px';
+    timezoneIndicator.style.right = '10px';
+    timezoneIndicator.style.fontSize = '12px';
+    timezoneIndicator.style.color = '#90EE90';
+    container.appendChild(timezoneIndicator);
+  }
+  
   // Create hour marks for 24-hour clock
   createHourMarks();
   
@@ -128,6 +155,45 @@ function hoursToSunPositionRadians(hours) {
 function updateClock() {
   const now = new Date();
   
+  // Check for URL parameter override for timezone
+  const urlParams = new URLSearchParams(window.location.search);
+  let overrideTimezone = urlParams.get('local');
+  let customTimezoneOffset = null;
+  
+  // Handle different formats of timezone parameter
+  if (overrideTimezone) {
+    // Check if it's a number like +8 or -8
+    if (/^[+-]\d+$/.test(overrideTimezone)) {
+      // Convert to hours
+      customTimezoneOffset = -parseInt(overrideTimezone) * 60; // Negative because getTimezoneOffset returns opposite sign
+      overrideTimezone = `GMT${overrideTimezone.startsWith('+') ? overrideTimezone : overrideTimezone}`;
+    } else {
+      // Try to handle named timezones - this is a simplification
+      const timezoneMap = {
+        'PST': -8*60, 'PDT': -7*60, 'MST': -7*60, 'MDT': -6*60,
+        'CST': -6*60, 'CDT': -5*60, 'EST': -5*60, 'EDT': -4*60,
+        'UTC': 0, 'GMT': 0, 'BST': 1*60, 'CET': 1*60, 
+        'CEST': 2*60, 'EET': 2*60, 'EEST': 3*60, 'MSK': 3*60,
+        'IST': 5.5*60, 'CST_ASIA': 8*60, 'JST': 9*60, 'AEST': 10*60,
+        'NZST': 12*60
+      };
+      
+      // Handle CST ambiguity (could be Central US or China)
+      if (overrideTimezone === 'CST_ASIA') {
+        overrideTimezone = 'CST';
+      }
+      
+      if (timezoneMap[overrideTimezone] !== undefined) {
+        customTimezoneOffset = -timezoneMap[overrideTimezone]; // Negative because getTimezoneOffset returns opposite sign
+      }
+    }
+    
+    // Update userTimezoneOffsetHours if we have a custom timezone
+    if (customTimezoneOffset !== null) {
+      userTimezoneOffsetHours = -customTimezoneOffset / 60;
+    }
+  }
+  
   // Determine which time to use - real time or user-adjusted time
   const displayTime = userAdjustedTime || now;
   
@@ -137,8 +203,8 @@ function updateClock() {
   const zuluSeconds = String(displayTime.getUTCSeconds()).padStart(2, '0');
   document.getElementById('zulu-time').textContent = `${zuluHours}:${zuluMinutes}:${zuluSeconds}Z`;
   
-  // Update local time display based on user's timezone
-  const userTimezoneOffset = now.getTimezoneOffset(); // in minutes
+  // Update local time display based on user's timezone or override
+  const userTimezoneOffset = customTimezoneOffset !== null ? customTimezoneOffset : now.getTimezoneOffset();
   
   // Create a new date for local time display
   let localDisplayTime;
@@ -164,11 +230,21 @@ function updateClock() {
   } else {
     // For real time, we can just use the current local time
     localDisplayTime = new Date();
+    
+    // If we have a custom timezone, adjust the time
+    if (customTimezoneOffset !== null) {
+      const localOffsetMinutes = now.getTimezoneOffset();
+      const offsetDifference = localOffsetMinutes - customTimezoneOffset;
+      localDisplayTime = new Date(localDisplayTime.getTime() + offsetDifference * 60000);
+    }
   }
   
   const localHours = String(localDisplayTime.getHours()).padStart(2, '0');
   const localMinutes = String(localDisplayTime.getMinutes()).padStart(2, '0');
-  const timeZoneAbbr = getTimeZoneAbbreviation();
+  const localSeconds = String(localDisplayTime.getSeconds()).padStart(2, '0');
+  
+  // Get timezone abbreviation - either from override or system
+  const timeZoneAbbr = overrideTimezone || getTimeZoneAbbreviation();
   
   // Get or create the local time element
   let localTimeElement = document.getElementById('local-time');
@@ -179,7 +255,13 @@ function updateClock() {
     document.getElementById('clock').appendChild(localTimeElement);
   }
   
-  localTimeElement.textContent = `${localHours}:${localMinutes} ${timeZoneAbbr}`;
+  // Update with seconds
+  localTimeElement.textContent = `${localHours}:${localMinutes}:${localSeconds} ${timeZoneAbbr}`;
+  
+  // Update local time position if we have a timezone offset
+  if (userTimezoneOffsetHours !== null) {
+    positionLocalTimeByTimezone();
+  }
   
   // Update terminator rotation based on the display time
   const utcHours = displayTime.getUTCHours();
@@ -247,7 +329,7 @@ function getAndShowUserLocation() {
       userTimezoneOffsetHours = -offsetMinutes / 60; // Negate because getTimezoneOffset returns minutes west of UTC
       
       // Now that we have location, show the pin and update local time position
-      updateUserLocationPin(latitude, longitude);
+      // updateUserLocationPin(latitude, longitude); // Not calling this as requested
       
       // Make pin visible now that we have a location
       const pinElement = document.getElementById('user-location-pin');
@@ -507,7 +589,8 @@ function adjustClockSize() {
   
   // Update positioning of elements
   if (userLocation) {
-    updateUserLocationPin(userLocation.latitude, userLocation.longitude);
+    // Do not call updateUserLocationPin as requested
+    // updateUserLocationPin(userLocation.latitude, userLocation.longitude);
   }
   
   if (userTimezoneOffsetHours !== null) {
