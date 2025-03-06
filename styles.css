@@ -249,10 +249,12 @@ body {
 #version-display {
   position: absolute;
   bottom: 8px;
-  right: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 12px;
   color: rgba(255, 255, 255, 0.6);
   font-family: 'Courier New', monospace;
+  text-align: center;
 }
 
 .pin-point {
