@@ -1,8 +1,9 @@
 {
-  "name": "Earth Clock",
-  "short_name": "Earth Clock",
-  "description": "24-hour analog clock with Earth viewed from the North pole and day/night terminator",
-  "start_url": "/",
+  "name": "GoZulu.app",
+  "short_name": "GoZulu",
+  "description": "solar clock with Earth viewed from the North Pole to help think in Zulu time",
+  "version": "0.2.0",
+  "start_url": "https://gozulu.app/",
   "display": "standalone",
   "background_color": "#000033",
   "theme_color": "#000033",

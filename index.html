@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#000033">
-  <title>Earth Clock</title>
+  <title>Go Zulu</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" href="favicon.ico" type="image/x-icon">
@@ -16,7 +16,7 @@
     
     <div id="clock">
       <div id="earth-container">
-        <div id="earth-image"></div>
+        <div id="earth-image" style="transform: rotate(-135deg);"></div>
         <div id="terminator"></div>
         <div id="sun-position"></div>
         <div id="user-location-pin">
@@ -27,11 +27,10 @@
       
       <div id="hour-marks"></div>
       
-      <!-- Greenwich meridian indicator -->
-      <div id="greenwich-line"></div>
+      <!-- Greenwich meridian line removed -->
     </div>
     
-    <div id="local-time" class="time-display">Local: 00:00 XXX</div>
+    <!-- Local time is now positioned dynamically via JavaScript -->
   </div>
 
   <script src="app.js"></script>
