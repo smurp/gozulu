@@ -93,12 +93,23 @@ function createHourMarks() {
     
     // Calculate rotation (15 degrees per hour, with 0/24 at the top)
     const rotation = i * 15;
-    hourMark.style.transform = `rotate(${rotation}deg) translateX(-50%)`;
-    hourMark.style.transformOrigin = '50% 50%';
+    const radians = rotation * (Math.PI / 180);
     
-    // Position at the edge of the clock
-    hourMark.style.top = '0';
-    hourMark.style.height = '10px';
+    // Calculate position on the circle's edge
+    // Use 50% as the center point, then calculate the position on the edge
+    const radius = 50; // 50% of the container width/height
+    
+    // Calculate x and y position on the circle (in percentage)
+    const x = 50 + radius * Math.sin(radians);
+    const y = 50 - radius * Math.cos(radians);
+    
+    // Position the mark
+    hourMark.style.position = 'absolute';
+    hourMark.style.top = `${y}%`;
+    hourMark.style.left = `${x}%`;
+    
+    // Rotate the triangle to point toward the center
+    hourMark.style.transform = `translate(-50%, -50%) rotate(${rotation + 180}deg)`;
     
     hourMarksContainer.appendChild(hourMark);
   }
