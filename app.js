@@ -32,15 +32,69 @@ let userAdjustedTime = null;
 let springBackAnimation = null;
 let isAnimatingSpringBack = false;
 let isDraggingSun = false;
+let fixedTime = null; // For 'as-of' parameter
 
 // Global variables to track user's location and timezone
 let userLocation = null;
 let userTimezoneOffsetHours = null;
 
+// Function to parse ISO8601 date strings
+function parseISO8601(dateString) {
+  try {
+    // Handle ISO8601 dates without timezone by adding local timezone
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)) {
+      return new Date(dateString); // Local timezone will be applied
+    }
+    return new Date(dateString); // With timezone specified
+  } catch (error) {
+    console.error('Invalid date format:', error);
+    return null;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  // Check for URL parameter override for timezone immediately
+  // Check for URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   let overrideTimezone = urlParams.get('local');
+  const asOfParam = urlParams.get('as-of');
+  
+  // Handle as-of parameter
+  if (asOfParam) {
+    fixedTime = parseISO8601(asOfParam);
+    if (fixedTime) {
+      // Format the display time keeping seconds but removing milliseconds
+      let displayAsOf = asOfParam;
+      
+      // If it's a full ISO string, strip the milliseconds but keep seconds
+      if (asOfParam.includes('.')) {
+        // Remove the millisecond part
+        const parts = asOfParam.split('.');
+        if (parts.length === 2) {
+          // Keep everything before the decimal point
+          const timezonePart = parts[1].match(/[Z]|[+-]\d\d:\d\d/);
+          displayAsOf = parts[0] + (timezonePart ? timezonePart[0] : '');
+        }
+      }
+      
+      // Add visual indicator for fixed time
+      const container = document.querySelector('.container');
+      const fixedTimeIndicator = document.createElement('div');
+      fixedTimeIndicator.className = 'fixed-time-indicator';
+      fixedTimeIndicator.textContent = `Fixed time: ${displayAsOf}`;
+      fixedTimeIndicator.style.position = 'absolute';
+      fixedTimeIndicator.style.top = '10px';
+      fixedTimeIndicator.style.left = '50%';
+      fixedTimeIndicator.style.transform = 'translateX(-50%)';
+      fixedTimeIndicator.style.fontSize = '12px';
+      fixedTimeIndicator.style.color = '#FF9090';
+      fixedTimeIndicator.style.textAlign = 'center';
+      fixedTimeIndicator.style.fontWeight = 'bold';
+      fixedTimeIndicator.style.zIndex = '100';
+      container.appendChild(fixedTimeIndicator);
+    } else {
+      console.error('Invalid as-of date format:', asOfParam);
+    }
+  }
   
   if (overrideTimezone) {
     // Update the page title to reflect the custom timezone
@@ -52,10 +106,14 @@ document.addEventListener('DOMContentLoaded', () => {
     timezoneIndicator.className = 'timezone-indicator';
     timezoneIndicator.textContent = `Using ${overrideTimezone} timezone`;
     timezoneIndicator.style.position = 'absolute';
-    timezoneIndicator.style.top = '5px';
-    timezoneIndicator.style.right = '10px';
+    timezoneIndicator.style.top = fixedTime ? '30px' : '10px'; // Position below fixed time if it exists
+    timezoneIndicator.style.left = '50%';
+    timezoneIndicator.style.transform = 'translateX(-50%)';
     timezoneIndicator.style.fontSize = '12px';
     timezoneIndicator.style.color = '#90EE90';
+    timezoneIndicator.style.textAlign = 'center';
+    timezoneIndicator.style.fontWeight = 'bold';
+    timezoneIndicator.style.zIndex = '100';
     container.appendChild(timezoneIndicator);
   }
   
@@ -65,8 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize the clock
   updateClock();
   
-  // Update every second
-  setInterval(updateClock, 1000);
+  // Update every second - only if not using fixed time
+  if (!fixedTime) {
+    setInterval(updateClock, 1000);
+  }
 
   // Still position local time based on timezone
   userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
@@ -165,7 +225,16 @@ function hoursToSunPositionRadians(hours) {
 }
 
 function updateClock() {
-  const now = new Date();
+  // Determine which time to use - real time, fixed time (as-of param), or user-adjusted time
+  let now;
+  
+  if (fixedTime) {
+    // Using a fixed time from as-of parameter
+    now = new Date(fixedTime);
+  } else {
+    // Using the current time
+    now = new Date();
+  }
   
   // Check for URL parameter override for timezone
   const urlParams = new URLSearchParams(window.location.search);
@@ -206,7 +275,7 @@ function updateClock() {
     }
   }
   
-  // Determine which time to use - real time or user-adjusted time
+  // Determine display time - user-adjusted takes precedence over fixed time
   const displayTime = userAdjustedTime || now;
   
   // Update Zulu (GMT/UTC) time display
@@ -435,10 +504,11 @@ function startDrag(e) {
     e.preventDefault();
     isDragging = true;
     
-    // Store the current real time before user adjustment
-    currentRealTime = new Date();
+    // Store the current time before user adjustment
+    // Use fixedTime if available, otherwise use real time
+    currentRealTime = fixedTime ? new Date(fixedTime) : new Date();
     
-    // Get current real time UTC
+    // Get current time UTC
     const utcHours = currentRealTime.getUTCHours();
     const utcMinutes = currentRealTime.getUTCMinutes();
     const utcTime = utcHours + (utcMinutes / 60);
@@ -513,71 +583,104 @@ function drag(e) {
     // Remove dragging class
     sunElement.classList.remove('dragging');
     
-    // Create spring-back animation
-    isAnimatingSpringBack = true;
-    
-    // Get current position and real time position
-    const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
-    const realTerminatorAngle = (new Date().getUTCHours() + (new Date().getUTCMinutes() / 60)) * 15 + 180;
-    
-    // Calculate difference
-    let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
-    // Ensure we go the shortest distance (handling the day boundary)
-    if (angleDiff > 180) angleDiff -= 360;
-    if (angleDiff < -180) angleDiff += 360;
-    
-    // Animation variables
-    const startTime = Date.now();
-    const duration = 800; // milliseconds
-    const startAngle = adjustedTerminatorAngle;
-    
-    // Spring animation effect using elastic easing
-    function elasticOut(t) {
-      return Math.sin(-13 * Math.PI/2 * (t + 1)) * Math.pow(2, -10 * t) + 1;
-    }
-    
-    function animateSpringBack() {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+    if (fixedTime) {
+      // In fixed time mode, update the URL with new as-of parameter
+      // Format date with seconds but without milliseconds
+      const year = userAdjustedTime.getUTCFullYear();
+      const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
+      const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
+      const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
       
-      if (progress < 1) {
-        // Calculate current angle using elastic easing
-        const currentAngle = startAngle + (angleDiff * elasticOut(progress));
-        
-        // Update position
-        const clockElement = document.getElementById('clock');
-        const radius = clockElement.offsetWidth / 2;
-        const sunElement = document.getElementById('sun-position');
-        
-        const sunAngle = (currentAngle - 90) * (Math.PI / 180);
-        const sunRadius = radius * sunScale;
-        const x = Math.cos(sunAngle) * sunRadius + radius;
-        const y = Math.sin(sunAngle) * sunRadius + radius;
-        
-        sunElement.style.left = `${x}px`;
-        sunElement.style.top = `${y}px`;
-        
-        // Also rotate the terminator
-        document.getElementById('terminator').style.transform = `rotate(${currentAngle}deg)`;
-        
-        // Continue animation
-        springBackAnimation = requestAnimationFrame(animateSpringBack);
+      // Format as YYYY-MM-DDThh:mm:ssZ
+      const formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
+      
+      // Create URL manually to avoid encoding colons
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.delete('as-of'); // Remove existing as-of parameter
+      
+      let newUrl = window.location.pathname;
+      if (urlParams.toString()) {
+        newUrl += '?' + urlParams.toString() + '&as-of=' + formattedTime;
       } else {
-        // Animation complete
-        springBackAnimation = null;
-        isAnimatingSpringBack = false;
-        userAdjustedTime = null;
-        
-        // Update clock with real time
-        updateClock();
+        newUrl += '?as-of=' + formattedTime;
       }
+      
+      window.history.pushState({ path: newUrl }, '', newUrl);
+      
+      // Update the fixed time
+      fixedTime = new Date(userAdjustedTime);
+      
+      // Keep the user adjusted time (no spring back)
+      isAnimatingSpringBack = false;
+    } else {
+      // In normal mode, create spring-back animation
+      isAnimatingSpringBack = true;
+      
+      // Get current position and real time position
+      const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
+      const realTerminatorAngle = (new Date().getUTCHours() + (new Date().getUTCMinutes() / 60)) * 15 + 180;
+      
+      // Calculate difference
+      let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
+      // Ensure we go the shortest distance (handling the day boundary)
+      if (angleDiff > 180) angleDiff -= 360;
+      if (angleDiff < -180) angleDiff += 360;
+      
+      // Animation variables
+      const startTime = Date.now();
+      const duration = 800; // milliseconds
+      const startAngle = adjustedTerminatorAngle;
+      
+      // Spring animation effect using elastic easing
+      function elasticOut(t) {
+        return Math.sin(-13 * Math.PI/2 * (t + 1)) * Math.pow(2, -10 * t) + 1;
+      }
+      
+      function animateSpringBack() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        if (progress < 1) {
+          // Calculate current angle using elastic easing
+          const currentAngle = startAngle + (angleDiff * elasticOut(progress));
+          
+          // Update position
+          const clockElement = document.getElementById('clock');
+          const radius = clockElement.offsetWidth / 2;
+          const sunElement = document.getElementById('sun-position');
+          
+          const sunAngle = (currentAngle - 90) * (Math.PI / 180);
+          const sunRadius = radius * sunScale;
+          const x = Math.cos(sunAngle) * sunRadius + radius;
+          const y = Math.sin(sunAngle) * sunRadius + radius;
+          
+          sunElement.style.left = `${x}px`;
+          sunElement.style.top = `${y}px`;
+          
+          // Also rotate the terminator
+          document.getElementById('terminator').style.transform = `rotate(${currentAngle}deg)`;
+          
+          // Continue animation
+          springBackAnimation = requestAnimationFrame(animateSpringBack);
+        } else {
+          // Animation complete
+          springBackAnimation = null;
+          isAnimatingSpringBack = false;
+          userAdjustedTime = null;
+          
+          // Update clock with real time
+          updateClock();
+        }
+      }
+      
+      // Start the spring back animation
+      if (springBackAnimation) {
+        cancelAnimationFrame(springBackAnimation);
+      }
+      springBackAnimation = requestAnimationFrame(animateSpringBack);
     }
-    
-    // Start animation
-    if (springBackAnimation) {
-      cancelAnimationFrame(springBackAnimation);
-    }
-    springBackAnimation = requestAnimationFrame(animateSpringBack);
   }
 }
 
