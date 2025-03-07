@@ -10,6 +10,7 @@ A Progressive Web App featuring a 24-hour clock with Earth viewed from the North
 - Local time display with timezone abbreviation
 - Draggable sun that allows time adjustment (with spring-back animation)
 - Support for custom timezones via URL parameters
+- Fixed time mode to set the clock to a specific date and time
 - Fully responsive design
 - Works offline as a Progressive Web App
 - Installable on desktop and mobile devices
@@ -34,6 +35,32 @@ You can specify a custom timezone with the `local` URL parameter:
 - `https://gozulu.app/?local=-5` - Display GMT-5 time (e.g., Eastern Time)
 
 Supported named timezones include: PST, PDT, MST, MDT, CST, CDT, EST, EDT, UTC, GMT, BST, CET, CEST, IST, JST, AEST, and others.
+
+NATO one-letter timezone codes are also supported:
+- `https://gozulu.app/?local=Z` - Zulu Time (UTC)
+- `https://gozulu.app/?local=R` - Romeo Time (UTC-5)
+- `https://gozulu.app/?local=H` - Hotel Time (UTC+8)
+
+The NATO military timezone codes run from A to M (UTC+1 to UTC+12) and N to Y (UTC-1 to UTC-12), with Z representing UTC/GMT. These single-letter codes will also be shown as fallbacks when standard three-letter timezone abbreviations aren't available.
+
+### Fixed Time Mode
+
+You can set the clock to a specific fixed time using the `as-of` URL parameter:
+
+- `https://gozulu.app/?as-of=2025-03-06T12:00:00Z` - Set clock to noon UTC on March 6, 2025
+- `https://gozulu.app/?as-of=2025-03-06T18:30:00-05:00` - Set clock to 6:30 PM Eastern Time on March 6, 2025
+- `https://gozulu.app/?as-of=2025-03-06T12:00:00` - Set clock to noon local time on March 6, 2025
+- `https://gozulu.app/?as-of=2025-03-06T12:00:00R` - Set clock to noon Romeo Time (UTC-5) on March 6, 2025
+
+NATO one-letter timezone codes can be used in the `as-of` parameter instead of Z or offset notation. Examples:
+- `https://gozulu.app/?as-of=2025-03-06T08:00:00H` - 8 AM Hotel Time (UTC+8)
+- `https://gozulu.app/?as-of=2025-03-06T17:30:00A` - 5:30 PM Alpha Time (UTC+1)
+
+In fixed time mode:
+- The clock stops ticking and displays the specified time
+- You can still drag the sun to adjust the time 
+- Dragging the sun will update the URL with the new time
+- Both `local` and `as-of` parameters can be combined
 
 ### Interactive Features
 
@@ -109,6 +136,11 @@ This project is available under the MIT License.
 
 ## Version History
 
+- 0.4.3 - Added NATO one-letter timezone code support in as-of parameter
+- 0.4.2 - Added NATO one-letter timezone code support for local parameter
+- 0.4.1 - Added fixed time mode with `as-of` URL parameter
+- 0.4.0 - Added animated GoZulu link
+- 0.3.0 - Improved responsive design and sun dragging
 - 0.2.0 - Added timezone URL parameter support and seconds to local time display
 - 0.1.0 - Initial release
 

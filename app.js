@@ -38,14 +38,65 @@ let fixedTime = null; // For 'as-of' parameter
 let userLocation = null;
 let userTimezoneOffsetHours = null;
 
-// Function to parse ISO8601 date strings
+// Function to parse ISO8601 date strings with enhanced timezone support
 function parseISO8601(dateString) {
   try {
+    // Check if we have a NATO one-letter timezone code instead of Z
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[A-IK-Z]$/)) {
+      // Extract the NATO code
+      const natoCode = dateString.charAt(dateString.length - 1);
+      
+      // Map of NATO timezone codes to UTC offsets in minutes
+      const natoOffsetMap = {
+        'Y': -12*60, // Yankee Time Zone (UTC-12)
+        'X': -11*60, // X-ray Time Zone (UTC-11)
+        'W': -10*60, // Whiskey Time Zone (UTC-10)
+        'V': -9*60,  // Victor Time Zone (UTC-9)
+        'U': -8*60,  // Uniform Time Zone (UTC-8)
+        'T': -7*60,  // Tango Time Zone (UTC-7)
+        'S': -6*60,  // Sierra Time Zone (UTC-6)
+        'R': -5*60,  // Romeo Time Zone (UTC-5)
+        'Q': -4*60,  // Quebec Time Zone (UTC-4)
+        'P': -3*60,  // Papa Time Zone (UTC-3)
+        'O': -2*60,  // Oscar Time Zone (UTC-2)
+        'N': -1*60,  // November Time Zone (UTC-1)
+        'Z': 0,      // Zulu Time Zone (UTC/GMT)
+        'A': 1*60,   // Alpha Time Zone (UTC+1)
+        'B': 2*60,   // Bravo Time Zone (UTC+2)
+        'C': 3*60,   // Charlie Time Zone (UTC+3)
+        'D': 4*60,   // Delta Time Zone (UTC+4)
+        'E': 5*60,   // Echo Time Zone (UTC+5)
+        'F': 6*60,   // Foxtrot Time Zone (UTC+6)
+        'G': 7*60,   // Golf Time Zone (UTC+7)
+        'H': 8*60,   // Hotel Time Zone (UTC+8)
+        'I': 9*60,   // India Time Zone (UTC+9)
+        'K': 10*60,  // Kilo Time Zone (UTC+10)
+        'L': 11*60,  // Lima Time Zone (UTC+11)
+        'M': 12*60   // Mike Time Zone (UTC+12)
+      };
+      
+      if (natoOffsetMap[natoCode]) {
+        // Convert to ISO8601 with UTC offset
+        const offsetMinutes = natoOffsetMap[natoCode];
+        const offsetHours = Math.abs(Math.floor(offsetMinutes / 60));
+        const remainingMinutes = Math.abs(offsetMinutes % 60);
+        
+        const sign = offsetMinutes >= 0 ? '+' : '-';
+        const offsetString = `${sign}${String(offsetHours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}`;
+        
+        // Replace NATO code with standard offset
+        const timeWithoutNato = dateString.substring(0, dateString.length - 1);
+        return new Date(`${timeWithoutNato}${offsetString}`);
+      }
+    }
+    
     // Handle ISO8601 dates without timezone by adding local timezone
     if (dateString.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)) {
       return new Date(dateString); // Local timezone will be applied
     }
-    return new Date(dateString); // With timezone specified
+    
+    // Standard ISO8601 with timezone
+    return new Date(dateString);
   } catch (error) {
     console.error('Invalid date format:', error);
     return null;
@@ -249,6 +300,35 @@ function updateClock() {
       customTimezoneOffset = -parseInt(overrideTimezone) * 60; // Negative because getTimezoneOffset returns opposite sign
       overrideTimezone = `GMT${overrideTimezone.startsWith('+') ? overrideTimezone : overrideTimezone}`;
     } else {
+      // Check if it's a NATO one-letter code
+      const natoMap = {
+        'Y': -12*60, // Yankee Time Zone (UTC-12)
+        'X': -11*60, // X-ray Time Zone (UTC-11)
+        'W': -10*60, // Whiskey Time Zone (UTC-10)
+        'V': -9*60,  // Victor Time Zone (UTC-9)
+        'U': -8*60,  // Uniform Time Zone (UTC-8)
+        'T': -7*60,  // Tango Time Zone (UTC-7)
+        'S': -6*60,  // Sierra Time Zone (UTC-6)
+        'R': -5*60,  // Romeo Time Zone (UTC-5)
+        'Q': -4*60,  // Quebec Time Zone (UTC-4)
+        'P': -3*60,  // Papa Time Zone (UTC-3)
+        'O': -2*60,  // Oscar Time Zone (UTC-2)
+        'N': -1*60,  // November Time Zone (UTC-1)
+        'Z': 0,      // Zulu Time Zone (UTC/GMT)
+        'A': 1*60,   // Alpha Time Zone (UTC+1)
+        'B': 2*60,   // Bravo Time Zone (UTC+2)
+        'C': 3*60,   // Charlie Time Zone (UTC+3)
+        'D': 4*60,   // Delta Time Zone (UTC+4)
+        'E': 5*60,   // Echo Time Zone (UTC+5)
+        'F': 6*60,   // Foxtrot Time Zone (UTC+6)
+        'G': 7*60,   // Golf Time Zone (UTC+7)
+        'H': 8*60,   // Hotel Time Zone (UTC+8)
+        'I': 9*60,   // India Time Zone (UTC+9)
+        'K': 10*60,  // Kilo Time Zone (UTC+10)
+        'L': 11*60,  // Lima Time Zone (UTC+11)
+        'M': 12*60   // Mike Time Zone (UTC+12)
+      };
+      
       // Try to handle named timezones - this is a simplification
       const timezoneMap = {
         'PST': -8*60, 'PDT': -7*60, 'MST': -7*60, 'MDT': -6*60,
@@ -264,8 +344,17 @@ function updateClock() {
         overrideTimezone = 'CST';
       }
       
+      // Try standard timezone abbreviation first
       if (timezoneMap[overrideTimezone] !== undefined) {
         customTimezoneOffset = -timezoneMap[overrideTimezone]; // Negative because getTimezoneOffset returns opposite sign
+      } 
+      // Then try NATO code as a fallback
+      else if (overrideTimezone.length === 1 && natoMap[overrideTimezone.toUpperCase()] !== undefined) {
+        const natoCode = overrideTimezone.toUpperCase();
+        customTimezoneOffset = -natoMap[natoCode]; // Negative because getTimezoneOffset returns opposite sign
+        
+        // For display purposes, prefix NATO timezones with "NATO-"
+        overrideTimezone = `${natoCode} Time`;
       }
     }
     
@@ -477,6 +566,52 @@ function getTimeZoneAbbreviation() {
   
   // Extract the abbreviation from the formatted string
   const timeZoneAbbr = timeZoneString.split(' ').pop();
+  
+  // If we got GMT+X or GMT-X format, convert to NATO code if possible
+  if (timeZoneAbbr.startsWith('GMT+') || timeZoneAbbr.startsWith('GMT-')) {
+    // Extract the offset hours
+    const offsetMatch = timeZoneAbbr.match(/GMT([+-])(\d+)/);
+    if (offsetMatch) {
+      const sign = offsetMatch[1];
+      const hours = parseInt(offsetMatch[2]);
+      
+      // Map offset to NATO code
+      // NATO code map for UTC offsets
+      const natoByOffset = {
+        '-12': 'Y', // Yankee Time Zone (UTC-12)
+        '-11': 'X', // X-ray Time Zone (UTC-11) 
+        '-10': 'W', // Whiskey Time Zone (UTC-10)
+        '-9': 'V',  // Victor Time Zone (UTC-9)
+        '-8': 'U',  // Uniform Time Zone (UTC-8)
+        '-7': 'T',  // Tango Time Zone (UTC-7)
+        '-6': 'S',  // Sierra Time Zone (UTC-6)
+        '-5': 'R',  // Romeo Time Zone (UTC-5)
+        '-4': 'Q',  // Quebec Time Zone (UTC-4)
+        '-3': 'P',  // Papa Time Zone (UTC-3)
+        '-2': 'O',  // Oscar Time Zone (UTC-2)
+        '-1': 'N',  // November Time Zone (UTC-1)
+        '0': 'Z',   // Zulu Time Zone (UTC/GMT)
+        '1': 'A',   // Alpha Time Zone (UTC+1)
+        '2': 'B',   // Bravo Time Zone (UTC+2)
+        '3': 'C',   // Charlie Time Zone (UTC+3)
+        '4': 'D',   // Delta Time Zone (UTC+4)
+        '5': 'E',   // Echo Time Zone (UTC+5)
+        '6': 'F',   // Foxtrot Time Zone (UTC+6)
+        '7': 'G',   // Golf Time Zone (UTC+7)
+        '8': 'H',   // Hotel Time Zone (UTC+8)
+        '9': 'I',   // India Time Zone (UTC+9)
+        '10': 'K',  // Kilo Time Zone (UTC+10)
+        '11': 'L',  // Lima Time Zone (UTC+11)
+        '12': 'M'   // Mike Time Zone (UTC+12)
+      };
+      
+      const offsetHours = (sign === '-' ? '-' : '') + hours;
+      if (natoByOffset[offsetHours]) {
+        return natoByOffset[offsetHours];
+      }
+    }
+  }
+  
   return timeZoneAbbr;
 }
 
@@ -585,16 +720,42 @@ function drag(e) {
     
     if (fixedTime) {
       // In fixed time mode, update the URL with new as-of parameter
-      // Format date with seconds but without milliseconds
-      const year = userAdjustedTime.getUTCFullYear();
-      const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
-      const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
-      const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
-      const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
+      let formattedTime;
       
-      // Format as YYYY-MM-DDThh:mm:ssZ
-      const formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
+      // Check if we're using a non-UTC timezone from the 'local' parameter
+      const localParam = urlParams.get('local');
+      let useNatoCode = false;
+      let natoCode = '';
+      
+      if (localParam && localParam.length === 1 && /^[A-IK-Z]$/i.test(localParam)) {
+        // Using a NATO one-letter code
+        natoCode = localParam.toUpperCase();
+        useNatoCode = true;
+      }
+      
+      if (useNatoCode && natoCode) {
+        // Format with NATO code
+        const year = userAdjustedTime.getUTCFullYear();
+        const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
+        const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
+        const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
+        
+        // Format as YYYY-MM-DDThh:mm:ss with NATO code
+        formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${natoCode}`;
+      } else {
+        // Format with UTC (Z)
+        const year = userAdjustedTime.getUTCFullYear();
+        const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
+        const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
+        const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
+        
+        // Format as YYYY-MM-DDThh:mm:ssZ
+        formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
+      }
       
       // Create URL manually to avoid encoding colons
       const urlParams = new URLSearchParams(window.location.search);
