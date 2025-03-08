@@ -136,6 +136,8 @@ This project is available under the MIT License.
 
 ## Version History
 
+- 0.4.5 - Major refactoring for time model and timezone handling
+- 0.4.4 - Fixed bug with local timezone display
 - 0.4.3 - Added NATO one-letter timezone code support in as-of parameter
 - 0.4.2 - Added NATO one-letter timezone code support for local parameter
 - 0.4.1 - Added fixed time mode with `as-of` URL parameter
