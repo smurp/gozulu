@@ -261,6 +261,11 @@ body {
   z-index: 15;
   cursor: grab;
   transition: background-color 0.3s ease, transform 0.2s ease;
+  /* Prevent text selection */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 #local-time:hover {

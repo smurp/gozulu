@@ -122,7 +122,7 @@ function processTimezoneParameter(overrideTimezone) {
   
   if (overrideTimezone.length === 1) {
     // If it's a NATO code
-    displayTimezone = `${overrideTimezone.toUpperCase()} Time`;
+    displayTimezone = `${overrideTimezone.toUpperCase()}`;
   } else if (/^[+-]\d+$/.test(overrideTimezone)) {
     // If it's a numeric offset
     displayTimezone = `GMT${overrideTimezone}`;
@@ -462,7 +462,7 @@ function getTimeZoneDisplay() {
     
     // For one-letter NATO codes, show the letter + "Time"
     if (overrideTimezone.length === 1) {
-      return `${overrideTimezone.toUpperCase()} Time`;
+      return `${overrideTimezone.toUpperCase()}`;
     } else if (/^[+-]\d+$/.test(overrideTimezone)) {
       // For numeric offsets, format as GMT+X
       return `GMT${overrideTimezone}`;
@@ -1080,8 +1080,6 @@ async function updateVersionDisplay() {
 
 // Add this to the DOMContentLoaded event listener in app.js
 document.addEventListener('DOMContentLoaded', () => {
-  // Existing code...
-  
   // Update version display
   updateVersionDisplay();
 });
