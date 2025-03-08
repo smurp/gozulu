@@ -10,10 +10,12 @@ function positionLocalTimeByTimezone() {
   // Position local time based on timezone offset
   // Convert the offset hours to degrees (each hour is 15 degrees)
   // 0 (GMT) is at top (0 degrees), positive offsets go clockwise
-  let angleDegrees = -userTimezoneOffsetHours * 15; // Negative because hours increase clockwise
+  // Negative sign because hours increase clockwise but angle increases counterclockwise
+  let angleDegrees = -userTimezoneOffsetHours * 15 + 270;
   
   // Ensure the angle is between 0 and 360
-  angleDegrees = (angleDegrees + 270) % 360;
+  angleDegrees = angleDegrees % 360;
+  if (angleDegrees < 0) angleDegrees += 360;
   
   // Convert to radians
   const radians = angleDegrees * (Math.PI / 180);
@@ -25,6 +27,9 @@ function positionLocalTimeByTimezone() {
   
   localTimeElement.style.left = `${textX}px`;
   localTimeElement.style.top = `${textY}px`;
+  
+  // Store the current position angle for dragging reference
+  localTimeElement.dataset.angleDegrees = angleDegrees;
 }
 
 // Global state variables
@@ -308,6 +313,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Setup draggable sun
   setupDraggableSun();
+  
+  // Setup draggable local time label
+  setupDraggableLocalTime();
   
   // Handle window resize
   window.addEventListener('resize', adjustClockSize);
@@ -878,6 +886,160 @@ function drag(e) {
       }
       springBackAnimation = requestAnimationFrame(animateSpringBack);
     }
+  }
+}
+
+function setupDraggableLocalTime() {
+  const localTimeElement = document.getElementById('local-time');
+  const clockElement = document.getElementById('clock');
+  
+  if (!localTimeElement) return;
+  
+  // Add a visual cue that the time is draggable
+  localTimeElement.style.cursor = 'grab';
+  localTimeElement.title = 'Drag to adjust timezone';
+  
+  let isDragging = false;
+  let startX, startY;
+  
+  // Mouse/Touch down event
+  localTimeElement.addEventListener('mousedown', startDrag);
+  localTimeElement.addEventListener('touchstart', startDrag);
+  
+  // Mouse/Touch move events
+  document.addEventListener('mousemove', drag);
+  document.addEventListener('touchmove', drag);
+  
+  // Mouse/Touch up events
+  document.addEventListener('mouseup', endDrag);
+  document.addEventListener('touchend', endDrag);
+  
+  function startDrag(e) {
+    e.preventDefault();
+    isDragging = true;
+    
+    // Add a dragging class
+    localTimeElement.classList.add('dragging');
+    localTimeElement.style.cursor = 'grabbing';
+    
+    // Get initial position
+    startX = e.clientX || e.touches[0].clientX;
+    startY = e.clientY || e.touches[0].clientY;
+  }
+  
+  function drag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    const clockRect = clockElement.getBoundingClientRect();
+    const clockCenterX = clockRect.left + clockRect.width / 2;
+    const clockCenterY = clockRect.top + clockRect.height / 2;
+    
+    // Get cursor position
+    const x = e.clientX || e.touches[0].clientX;
+    const y = e.clientY || e.touches[0].clientY;
+    
+    // Calculate angle relative to clock center
+    const dx = x - clockCenterX;
+    const dy = y - clockCenterY;
+    
+    // Get the angle from the mouse position
+    // This is exactly what we need to directly calculate the timezone offset
+    const radians = Math.atan2(dy, dx); 
+    let angleDegrees = radians * (180 / Math.PI);
+    
+    // Convert to 0-360 range
+    if (angleDegrees < 0) angleDegrees += 360;
+    
+    // In positionLocalTimeByTimezone, we convert from timezone to angle using:
+    // angleDegrees = (-userTimezoneOffsetHours * 15 + 270) % 360
+    
+    // So to go from angle to timezone, we solve this equation:
+    // angleDegrees = -userTimezoneOffsetHours * 15 + 270
+    // userTimezoneOffsetHours = (270 - angleDegrees) / 15
+    
+    const newOffset = (270 - angleDegrees) / 15;
+    
+    // Round to nearest quarter hour
+    const roundedOffset = Math.round(newOffset * 4) / 4;
+    
+    // Update display
+    userTimezoneOffsetHours = roundedOffset;
+    
+    // Update position
+    positionLocalTimeByTimezone();
+    
+    // Update time display with new offset
+    updateLocalTimeDisplay();
+  }
+  
+  function endDrag() {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    // Remove dragging class
+    localTimeElement.classList.remove('dragging');
+    localTimeElement.style.cursor = 'grab';
+    
+    // Update URL with new timezone
+    updateTimezoneQueryString(userTimezoneOffsetHours);
+  }
+}
+
+function updateTimezoneQueryString(offsetHours) {
+  // Get the current URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  // Format the offset for the URL
+  // Convert to the sign convention for the URL parameter
+  let formattedOffset;
+  
+  // Convert to nearest whole or half hour
+  const offsetRounded = Math.round(offsetHours * 2) / 2;
+  
+  // Try to find a NATO code for the timezone
+  const natoCodeMap = {
+    '-12': 'Y', '-11': 'X', '-10': 'W', '-9': 'V', '-8': 'U', '-7': 'T', '-6': 'S', '-5': 'R',
+    '-4': 'Q', '-3': 'P', '-2': 'O', '-1': 'N', '0': 'Z', '1': 'A', '2': 'B', '3': 'C',
+    '4': 'D', '5': 'E', '6': 'F', '7': 'G', '8': 'H', '9': 'I', '10': 'K', '11': 'L', '12': 'M'
+  };
+  
+  // If it's a whole hour offset and we have a NATO code, use that
+  if (Number.isInteger(offsetRounded) && natoCodeMap[offsetRounded.toString()] !== undefined) {
+    formattedOffset = natoCodeMap[offsetRounded.toString()];
+  } else {
+    // Otherwise use +/- format
+    formattedOffset = offsetRounded >= 0 ? `+${offsetRounded}` : `${offsetRounded}`;
+  }
+  
+  // Update or add the local parameter
+  urlParams.set('local', formattedOffset);
+  
+  // Create new URL and update browser history
+  const newURL = `${window.location.pathname}?${urlParams.toString()}`;
+  window.history.pushState({ path: newURL }, '', newURL);
+  
+  // Update page title and timezone indicator
+  updateTimezoneIndicator(formattedOffset);
+}
+
+function updateTimezoneIndicator(timezone) {
+  // Update page title
+  let displayTimezone = timezone;
+  
+  // If it's a NATO code, format it properly
+  if (timezone.length === 1) {
+    displayTimezone = `${timezone} Time`;
+  } else if (timezone.startsWith('+') || timezone.startsWith('-')) {
+    displayTimezone = `GMT${timezone}`;
+  }
+  
+  document.title = `GoZulu - ${displayTimezone}`;
+  
+  // Update timezone indicator if it exists
+  const indicator = document.querySelector('.timezone-indicator');
+  if (indicator) {
+    indicator.textContent = `Using ${displayTimezone} timezone`;
   }
 }
 

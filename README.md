@@ -65,6 +65,7 @@ In fixed time mode:
 ### Interactive Features
 
 - **Draggable Sun**: Click and drag the sun to adjust the displayed time. The sun will snap to 15-minute intervals.
+- **Draggable Local Time**: Click and drag the local time display to adjust your timezone. The display will update in real-time and update the URL with the new timezone.
 - **Spring-Back Animation**: When you release the sun, it will animate back to the current real time with a spring-like motion.
 - **Time Adjustment**: All times update as you drag the sun, allowing you to see what time it would be anywhere in the world at different times of day.
 
@@ -136,6 +137,7 @@ This project is available under the MIT License.
 
 ## Version History
 
+- 0.5.0 - Added draggable local time label to adjust timezone
 - 0.4.5 - Major refactoring for time model and timezone handling
 - 0.4.4 - Fixed bug with local timezone display
 - 0.4.3 - Added NATO one-letter timezone code support in as-of parameter
