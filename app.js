@@ -7,13 +7,8 @@ function positionLocalTimeByTimezone() {
   const clockElement = document.getElementById('clock');
   const radius = clockElement.offsetWidth / 2;
   
-  // Position local time based on timezone offset
-  // Convert the offset hours to degrees (each hour is 15 degrees)
-  // 0 (GMT) is at top (0 degrees), positive offsets go clockwise
-  let angleDegrees = -userTimezoneOffsetHours * 15; // Negative because hours increase clockwise
-  
-  // Ensure the angle is between 0 and 360
-  angleDegrees = (angleDegrees + 270) % 360;
+  // Use TeeZee to calculate the angle for positioning
+  const angleDegrees = TeeZee.getClockPositionAngle(userTimezoneOffsetHours);
   
   // Convert to radians
   const radians = angleDegrees * (Math.PI / 180);
@@ -25,18 +20,26 @@ function positionLocalTimeByTimezone() {
   
   localTimeElement.style.left = `${textX}px`;
   localTimeElement.style.top = `${textY}px`;
+  
+  // Store the current position angle for dragging reference
+  localTimeElement.dataset.angleDegrees = angleDegrees;
 }
 
-// Store the real time and user-adjusted time separately
-let userAdjustedTime = null;
+// Global state variables
+let currentTime = null;      // The main time reference - could be system time, fixed time, or adjusted time
+let systemTime = null;       // The actual system time, updated every second
+let userAdjustedTime = null; // Temporary time when sun is being dragged
+let fixedTime = null;        // For 'as-of' parameter - when not null, currentTime is fixed
+let useFixedTime = false;    // Flag to indicate we're using fixed time
+
 let springBackAnimation = null;
 let isAnimatingSpringBack = false;
 let isDraggingSun = false;
-let fixedTime = null; // For 'as-of' parameter
 
 // Global variables to track user's location and timezone
 let userLocation = null;
 let userTimezoneOffsetHours = null;
+let customTimezoneOffset = null;  // Set when 'local' parameter is present
 
 // Function to parse ISO8601 date strings with enhanced timezone support
 function parseISO8601(dateString) {
@@ -103,16 +106,109 @@ function parseISO8601(dateString) {
   }
 }
 
+// Process timezone parameter and set customTimezoneOffset
+function processTimezoneParameter(overrideTimezone) {
+  // Use TeeZee to parse the timezone
+  const hourOffset = TeeZee.parseTimezone(overrideTimezone);
+  
+  // Set the custom timezone offset in minutes (negative because getTimezoneOffset returns opposite sign)
+  customTimezoneOffset = -hourOffset * 60;
+  
+  // Update userTimezoneOffsetHours
+  userTimezoneOffsetHours = hourOffset;
+  
+  // Format the timezone for display
+  let displayTimezone;
+  
+  if (overrideTimezone.length === 1) {
+    // If it's a NATO code
+    displayTimezone = `${overrideTimezone.toUpperCase()} Time`;
+  } else if (/^[+-]\d+$/.test(overrideTimezone)) {
+    // If it's a numeric offset
+    displayTimezone = `GMT${overrideTimezone}`;
+  } else {
+    // For standard abbreviations or unknown formats, use what was provided
+    // TeeZee can also provide a formatted version
+    const abbr = TeeZee.getAbbreviation(hourOffset);
+    if (abbr && abbr !== 'GMT') {
+      displayTimezone = abbr;
+    } else {
+      displayTimezone = TeeZee.formatOffset(hourOffset, 'offset');
+    }
+  }
+  
+  return displayTimezone;
+}
+
+// Function to update current time based on fixed time, user adjusted time, or system time
+function updateCurrentTime() {
+  if (userAdjustedTime) {
+    // When user is dragging the sun
+    currentTime = new Date(userAdjustedTime);
+  } else if (useFixedTime && fixedTime) {
+    // When using a fixed time from the as-of parameter
+    currentTime = new Date(fixedTime);
+  } else {
+    // Default: use system time
+    currentTime = new Date(systemTime);
+  }
+}
+
+// Function to update all time displays
+function updateAllTimeDisplays() {
+  // Update Zulu time
+  updateZuluTimeDisplay();
+  
+  // Update local time
+  updateLocalTimeDisplay();
+  
+  // Update terminator and sun position
+  updateTerminatorAndSun();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize system time
+  systemTime = new Date();
+  
   // Check for URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   let overrideTimezone = urlParams.get('local');
   const asOfParam = urlParams.get('as-of');
   
+  // Process timezone parameter first
+  if (overrideTimezone) {
+    // Process timezone parameter - this function will set customTimezoneOffset
+    overrideTimezone = processTimezoneParameter(overrideTimezone);
+    
+    // Update the page title to reflect the custom timezone
+    document.title = `GoZulu - ${overrideTimezone} Time`;
+    
+    // Add a visual indicator that we're using a custom timezone
+    const container = document.querySelector('.container');
+    const timezoneIndicator = document.createElement('div');
+    timezoneIndicator.className = 'timezone-indicator';
+    timezoneIndicator.textContent = `Using ${overrideTimezone} timezone`;
+    timezoneIndicator.style.position = 'absolute';
+    timezoneIndicator.style.top = asOfParam ? '30px' : '10px'; // Position below fixed time if it exists
+    timezoneIndicator.style.left = '50%';
+    timezoneIndicator.style.transform = 'translateX(-50%)';
+    timezoneIndicator.style.fontSize = '12px';
+    timezoneIndicator.style.color = '#90EE90';
+    timezoneIndicator.style.textAlign = 'center';
+    timezoneIndicator.style.fontWeight = 'bold';
+    timezoneIndicator.style.zIndex = '100';
+    container.appendChild(timezoneIndicator);
+  } else {
+    // Use system timezone if no override
+    userTimezoneOffsetHours = -systemTime.getTimezoneOffset() / 60;
+  }
+  
   // Handle as-of parameter
   if (asOfParam) {
     fixedTime = parseISO8601(asOfParam);
     if (fixedTime) {
+      useFixedTime = true;
+      
       // Format the display time keeping seconds but removing milliseconds
       let displayAsOf = asOfParam;
       
@@ -147,26 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
-  if (overrideTimezone) {
-    // Update the page title to reflect the custom timezone
-    document.title = `GoZulu - ${overrideTimezone} Time`;
-    
-    // Optional: Add a visual indicator that we're using a custom timezone
-    const container = document.querySelector('.container');
-    const timezoneIndicator = document.createElement('div');
-    timezoneIndicator.className = 'timezone-indicator';
-    timezoneIndicator.textContent = `Using ${overrideTimezone} timezone`;
-    timezoneIndicator.style.position = 'absolute';
-    timezoneIndicator.style.top = fixedTime ? '30px' : '10px'; // Position below fixed time if it exists
-    timezoneIndicator.style.left = '50%';
-    timezoneIndicator.style.transform = 'translateX(-50%)';
-    timezoneIndicator.style.fontSize = '12px';
-    timezoneIndicator.style.color = '#90EE90';
-    timezoneIndicator.style.textAlign = 'center';
-    timezoneIndicator.style.fontWeight = 'bold';
-    timezoneIndicator.style.zIndex = '100';
-    container.appendChild(timezoneIndicator);
-  }
+  // Initialize current time based on fixed time or system time
+  updateCurrentTime();
   
   // Create hour marks for 24-hour clock
   createHourMarks();
@@ -175,23 +253,29 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock();
   
   // Update every second - only if not using fixed time
-  if (!fixedTime) {
-    setInterval(updateClock, 1000);
+  if (!useFixedTime) {
+    setInterval(() => {
+      systemTime = new Date(); // Update system time
+      updateCurrentTime();     // Update current time
+      updateClock();           // Update the clock display
+    }, 1000);
   }
 
-  // Still position local time based on timezone
-  userTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
+  // Position local time based on timezone
   positionLocalTimeByTimezone();
-  
-  // Get user's location (if permitted)
-  //getAndShowUserLocation();
   
   // Setup draggable sun
   setupDraggableSun();
   
+  // Setup draggable local time label
+  setupDraggableLocalTime();
+  
   // Handle window resize
   window.addEventListener('resize', adjustClockSize);
   adjustClockSize();
+  
+  // Initial update of all time displays
+  updateAllTimeDisplays();
 });
 
 function createHourMarks() {
@@ -221,6 +305,49 @@ function createHourMarks() {
     
     // Rotate the triangle to point toward the center (inward)
     hourMark.style.transform = `translate(-50%, 0) rotate(${rotation+180}deg)`;
+    
+    // Use TeeZee to calculate the hour offset from the hour position
+    // For a 24-hour clock, each hour mark is 15 degrees (360/24)
+    // Hour 0 (midnight UTC) is at the top, Hour 12 (noon UTC) is at the bottom
+    // Hours increase clockwise
+    
+    // Convert hour position to degrees (for calculation, not for display)
+    // Each hour is 15 degrees
+    const angleDegrees = i * 15;
+    
+    // Calculate the hour offset using TeeZee
+    // This makes sure we get the proper -12 to +12 range
+    const hourOffset = TeeZee.getOffsetFromClockPosition(angleDegrees);
+    
+    // Store the hour offset as a data attribute
+    hourMark.dataset.hourOffset = hourOffset;
+    
+    // Get timezone information from TeeZee for the tooltip
+    const natoCode = TeeZee.getNatoCode(hourOffset);
+    const placeName = TeeZee.getPlaceName(hourOffset);
+    const abbr = TeeZee.getAbbreviation(hourOffset);
+    
+    // Format the tooltip with comprehensive information
+    const timezoneName = `${abbr} - ${hourOffset >= 0 ? '+' : ''}${hourOffset} (${natoCode}) - ${placeName}`;
+    hourMark.title = timezoneName;
+    
+    // Add click event to set the timezone when clicking on an hour mark
+    hourMark.addEventListener('click', function() {
+      const offset = parseInt(this.dataset.hourOffset);
+      
+      // Update the userTimezoneOffsetHours
+      userTimezoneOffsetHours = offset;
+      
+      // Update the position and display
+      positionLocalTimeByTimezone();
+      updateLocalTimeDisplay();
+      
+      // Update timezone indicator immediately
+      updateTimezoneIndicatorOnly(offset);
+      
+      // Update the URL with the new timezone
+      updateTimezoneQueryString(offset);
+    });
     
     hourMarksContainer.appendChild(hourMark);
   }
@@ -275,146 +402,39 @@ function hoursToSunPositionRadians(hours) {
   return (degrees - 90) * (Math.PI / 180);
 }
 
-function updateClock() {
-  // Determine which time to use - real time, fixed time (as-of param), or user-adjusted time
-  let now;
-  
-  if (fixedTime) {
-    // Using a fixed time from as-of parameter
-    now = new Date(fixedTime);
-  } else {
-    // Using the current time
-    now = new Date();
-  }
-  
-  // Check for URL parameter override for timezone
-  const urlParams = new URLSearchParams(window.location.search);
-  let overrideTimezone = urlParams.get('local');
-  let customTimezoneOffset = null;
-  
-  // Handle different formats of timezone parameter
-  if (overrideTimezone) {
-    // Check if it's a number like +8 or -8
-    if (/^[+-]\d+$/.test(overrideTimezone)) {
-      // Convert to hours
-      customTimezoneOffset = -parseInt(overrideTimezone) * 60; // Negative because getTimezoneOffset returns opposite sign
-      overrideTimezone = `GMT${overrideTimezone.startsWith('+') ? overrideTimezone : overrideTimezone}`;
-    } else {
-      // Check if it's a NATO one-letter code
-      const natoMap = {
-        'Y': -12*60, // Yankee Time Zone (UTC-12)
-        'X': -11*60, // X-ray Time Zone (UTC-11)
-        'W': -10*60, // Whiskey Time Zone (UTC-10)
-        'V': -9*60,  // Victor Time Zone (UTC-9)
-        'U': -8*60,  // Uniform Time Zone (UTC-8)
-        'T': -7*60,  // Tango Time Zone (UTC-7)
-        'S': -6*60,  // Sierra Time Zone (UTC-6)
-        'R': -5*60,  // Romeo Time Zone (UTC-5)
-        'Q': -4*60,  // Quebec Time Zone (UTC-4)
-        'P': -3*60,  // Papa Time Zone (UTC-3)
-        'O': -2*60,  // Oscar Time Zone (UTC-2)
-        'N': -1*60,  // November Time Zone (UTC-1)
-        'Z': 0,      // Zulu Time Zone (UTC/GMT)
-        'A': 1*60,   // Alpha Time Zone (UTC+1)
-        'B': 2*60,   // Bravo Time Zone (UTC+2)
-        'C': 3*60,   // Charlie Time Zone (UTC+3)
-        'D': 4*60,   // Delta Time Zone (UTC+4)
-        'E': 5*60,   // Echo Time Zone (UTC+5)
-        'F': 6*60,   // Foxtrot Time Zone (UTC+6)
-        'G': 7*60,   // Golf Time Zone (UTC+7)
-        'H': 8*60,   // Hotel Time Zone (UTC+8)
-        'I': 9*60,   // India Time Zone (UTC+9)
-        'K': 10*60,  // Kilo Time Zone (UTC+10)
-        'L': 11*60,  // Lima Time Zone (UTC+11)
-        'M': 12*60   // Mike Time Zone (UTC+12)
-      };
-      
-      // Try to handle named timezones - this is a simplification
-      const timezoneMap = {
-        'PST': -8*60, 'PDT': -7*60, 'MST': -7*60, 'MDT': -6*60,
-        'CST': -6*60, 'CDT': -5*60, 'EST': -5*60, 'EDT': -4*60,
-        'UTC': 0, 'GMT': 0, 'BST': 1*60, 'CET': 1*60,
-        'CEST': 2*60, 'EET': 2*60, 'EEST': 3*60, 'MSK': 3*60,
-        'IST': 5.5*60, 'CST_ASIA': 8*60, 'JST': 9*60, 'AEST': 10*60,
-        'NZST': 12*60
-      };
-      
-      // Handle CST ambiguity (could be Central US or China)
-      if (overrideTimezone === 'CST_ASIA') {
-        overrideTimezone = 'CST';
-      }
-      
-      // Try standard timezone abbreviation first
-      if (timezoneMap[overrideTimezone] !== undefined) {
-        customTimezoneOffset = -timezoneMap[overrideTimezone]; // Negative because getTimezoneOffset returns opposite sign
-      } 
-      // Then try NATO code as a fallback
-      else if (overrideTimezone.length === 1 && natoMap[overrideTimezone.toUpperCase()] !== undefined) {
-        const natoCode = overrideTimezone.toUpperCase();
-        customTimezoneOffset = -natoMap[natoCode]; // Negative because getTimezoneOffset returns opposite sign
-        
-        // For display purposes, prefix NATO timezones with "NATO-"
-        overrideTimezone = `${natoCode} Time`;
-      }
-    }
-    
-    // Update userTimezoneOffsetHours if we have a custom timezone
-    if (customTimezoneOffset !== null) {
-      userTimezoneOffsetHours = -customTimezoneOffset / 60;
-    }
-  }
-  
-  // Determine display time - user-adjusted takes precedence over fixed time
-  const displayTime = userAdjustedTime || now;
-  
-  // Update Zulu (GMT/UTC) time display
-  const zuluHours = String(displayTime.getUTCHours()).padStart(2, '0');
-  const zuluMinutes = String(displayTime.getUTCMinutes()).padStart(2, '0');
-  const zuluSeconds = String(displayTime.getUTCSeconds()).padStart(2, '0');
+// Function to update the Zulu time display
+function updateZuluTimeDisplay() {
+  const zuluHours = String(currentTime.getUTCHours()).padStart(2, '0');
+  const zuluMinutes = String(currentTime.getUTCMinutes()).padStart(2, '0');
+  const zuluSeconds = String(currentTime.getUTCSeconds()).padStart(2, '0');
   document.getElementById('zulu-time').textContent = `${zuluHours}:${zuluMinutes}:${zuluSeconds}Z`;
+}
+
+// Function to update the local time display based on custom or system timezone
+function updateLocalTimeDisplay() {
+  // Get UTC time
+  const utcHours = currentTime.getUTCHours();
+  const utcMinutes = currentTime.getUTCMinutes();
   
-  // Update local time display based on user's timezone or override
-  const userTimezoneOffset = customTimezoneOffset !== null ? customTimezoneOffset : now.getTimezoneOffset();
+  // Calculate local time by applying the timezone offset
+  // userTimezoneOffsetHours is already in the correct format for direct arithmetic
+  // For custom timezones: derived in processTimezoneParameter as -customTimezoneOffset / 60
+  // For system timezones: derived as -systemTime.getTimezoneOffset() / 60
   
-  // Create a new date for local time display
-  let localDisplayTime;
-  if (userAdjustedTime) {
-    // When user has dragged the sun, we need to calculate what the local time would be
-    // based on their timezone offset and the adjusted UTC time
-    localDisplayTime = new Date(userAdjustedTime.getTime());
-    // The getTimezoneOffset returns minutes WEST of UTC, so we need to add (not subtract)
-    // For GMT+8, the offset would be -480 minutes (8 hours west of UTC)
-    localDisplayTime.setMinutes(localDisplayTime.getMinutes() + userTimezoneOffset);
-    
-    // Now manually add the timezone offset since the user is in GMT+8
-    // The direct timezone adjustment in minutes (for GMT+8, that's +480 minutes)
-    const timezoneOffsetHours = Math.abs(Math.floor(userTimezoneOffset / 60));
-    
-    if (userTimezoneOffset < 0) {
-      // For locations east of GMT (positive offset like GMT+8)
-      localDisplayTime.setHours(localDisplayTime.getHours() + timezoneOffsetHours);
-    } else {
-      // For locations west of GMT (negative offset like GMT-5)
-      localDisplayTime.setHours(localDisplayTime.getHours() - timezoneOffsetHours);
-    }
-  } else {
-    // For real time, we can just use the current local time
-    localDisplayTime = new Date();
-    
-    // If we have a custom timezone, adjust the time
-    if (customTimezoneOffset !== null) {
-      const localOffsetMinutes = now.getTimezoneOffset();
-      const offsetDifference = localOffsetMinutes - customTimezoneOffset;
-      localDisplayTime = new Date(localDisplayTime.getTime() + offsetDifference * 60000);
-    }
-  }
+  // Apply the offset to get local hours, ensuring it wraps properly around 24
+  const offsetHoursWhole = Math.floor(userTimezoneOffsetHours);
+  const localHours = (utcHours + offsetHoursWhole + 24) % 24;
   
-  const localHours = String(localDisplayTime.getHours()); //.padStart(2, '0');
-  const localMinutes = String(localDisplayTime.getMinutes()).padStart(2, '0');
-  const localSeconds = String(localDisplayTime.getSeconds()).padStart(2, '0');
+  // Handle fractional hour offsets (like India at UTC+5:30)
+  const offsetMinutes = Math.round((userTimezoneOffsetHours % 1) * 60);
+  const calculatedLocalMinutes = (utcMinutes + offsetMinutes + 60) % 60;
+  
+  // Format the time values as strings for display
+  const formattedLocalHours = String(localHours); //.padStart(2, '0');
+  const formattedLocalMinutes = String(calculatedLocalMinutes).padStart(2, '0');
   
   // Get timezone abbreviation - either from override or system
-  const timeZoneAbbr = overrideTimezone || getTimeZoneAbbreviation();
+  const timeZoneAbbr = getTimeZoneDisplay();
   
   // Get or create the local time element
   let localTimeElement = document.getElementById('local-time');
@@ -425,17 +445,42 @@ function updateClock() {
     document.getElementById('clock').appendChild(localTimeElement);
   }
   
-  // Update with seconds
-  localTimeElement.textContent = `${localHours}:${localMinutes} ${timeZoneAbbr}`;
+  // Update the display with the new format
+  localTimeElement.textContent = `${formattedLocalHours}:${formattedLocalMinutes} ${timeZoneAbbr}`;
+}
+
+// Function to get timezone display text
+function getTimeZoneDisplay() {
+  // Get URL parameter for local timezone (if any)
+  const urlParams = new URLSearchParams(window.location.search);
+  const overrideTimezone = urlParams.get('local');
   
-  // Update local time position if we have a timezone offset
-  if (userTimezoneOffsetHours !== null) {
-    positionLocalTimeByTimezone();
+  // If we have a timezone parameter, use it
+  if (overrideTimezone) {
+    // Parse the timezone to get the offset
+    const offset = TeeZee.parseTimezone(overrideTimezone);
+    
+    // For one-letter NATO codes, show the letter + "Time"
+    if (overrideTimezone.length === 1) {
+      return `${overrideTimezone.toUpperCase()} Time`;
+    } else if (/^[+-]\d+$/.test(overrideTimezone)) {
+      // For numeric offsets, format as GMT+X
+      return `GMT${overrideTimezone}`;
+    }
+    
+    // For other formats, use the formatted name based on the parsed offset
+    return TeeZee.getAbbreviation(offset);
   }
   
-  // Update terminator rotation based on the display time
-  const utcHours = displayTime.getUTCHours();
-  const utcMinutes = displayTime.getUTCMinutes();
+  // Otherwise use system timezone
+  return getTimeZoneAbbreviation();
+}
+
+// Function to update the terminator and sun position
+function updateTerminatorAndSun() {
+  // Get UTC hours and minutes from current time
+  const utcHours = currentTime.getUTCHours();
+  const utcMinutes = currentTime.getUTCMinutes();
   
   // Snap to 15-minute intervals if user is dragging
   let utcTimeForTerminator = utcHours + (utcMinutes / 60);
@@ -447,14 +492,24 @@ function updateClock() {
   
   // Convert hours to clock degrees
   const sunDegrees = hoursToClockDegrees(utcTimeForTerminator);
-  const terminatorDegrees = (sunDegrees) % 360; // Add 180° because terminator is opposite the sun
+  const terminatorDegrees = (sunDegrees) % 360;
   
+  // Update terminator rotation
   document.getElementById('terminator').style.transform = `rotate(${terminatorDegrees}deg)`;
   
   // Update sun position - but not if user is actively dragging it
   if (!isDraggingSun && !isAnimatingSpringBack) {
     updateSunPosition(terminatorDegrees);
   }
+}
+
+// Main function to update the clock display
+function updateClock() {
+  // First update the current time (based on fixed, adjusted, or system time)
+  updateCurrentTime();
+  
+  // Then update all displays
+  updateAllTimeDisplays();
 }
 
 // Function to position the sun based on UTC time
@@ -574,40 +629,12 @@ function getTimeZoneAbbreviation() {
     if (offsetMatch) {
       const sign = offsetMatch[1];
       const hours = parseInt(offsetMatch[2]);
+      const offset = sign === '-' ? -hours : hours;
       
-      // Map offset to NATO code
-      // NATO code map for UTC offsets
-      const natoByOffset = {
-        '-12': 'Y', // Yankee Time Zone (UTC-12)
-        '-11': 'X', // X-ray Time Zone (UTC-11) 
-        '-10': 'W', // Whiskey Time Zone (UTC-10)
-        '-9': 'V',  // Victor Time Zone (UTC-9)
-        '-8': 'U',  // Uniform Time Zone (UTC-8)
-        '-7': 'T',  // Tango Time Zone (UTC-7)
-        '-6': 'S',  // Sierra Time Zone (UTC-6)
-        '-5': 'R',  // Romeo Time Zone (UTC-5)
-        '-4': 'Q',  // Quebec Time Zone (UTC-4)
-        '-3': 'P',  // Papa Time Zone (UTC-3)
-        '-2': 'O',  // Oscar Time Zone (UTC-2)
-        '-1': 'N',  // November Time Zone (UTC-1)
-        '0': 'Z',   // Zulu Time Zone (UTC/GMT)
-        '1': 'A',   // Alpha Time Zone (UTC+1)
-        '2': 'B',   // Bravo Time Zone (UTC+2)
-        '3': 'C',   // Charlie Time Zone (UTC+3)
-        '4': 'D',   // Delta Time Zone (UTC+4)
-        '5': 'E',   // Echo Time Zone (UTC+5)
-        '6': 'F',   // Foxtrot Time Zone (UTC+6)
-        '7': 'G',   // Golf Time Zone (UTC+7)
-        '8': 'H',   // Hotel Time Zone (UTC+8)
-        '9': 'I',   // India Time Zone (UTC+9)
-        '10': 'K',  // Kilo Time Zone (UTC+10)
-        '11': 'L',  // Lima Time Zone (UTC+11)
-        '12': 'M'   // Mike Time Zone (UTC+12)
-      };
-      
-      const offsetHours = (sign === '-' ? '-' : '') + hours;
-      if (natoByOffset[offsetHours]) {
-        return natoByOffset[offsetHours];
+      // Get the NATO code using TeeZee
+      const natoCode = TeeZee.getNatoCode(offset);
+      if (natoCode) {
+        return natoCode;
       }
     }
   }
@@ -639,17 +666,9 @@ function startDrag(e) {
     e.preventDefault();
     isDragging = true;
     
-    // Store the current time before user adjustment
-    // Use fixedTime if available, otherwise use real time
-    currentRealTime = fixedTime ? new Date(fixedTime) : new Date();
-    
-    // Get current time UTC
-    const utcHours = currentRealTime.getUTCHours();
-    const utcMinutes = currentRealTime.getUTCMinutes();
-    const utcTime = utcHours + (utcMinutes / 60);
-    
-    // Initialize userAdjustedTime to the current time to prevent jumping
-    userAdjustedTime = new Date(currentRealTime);
+    // Store the starting state - needed for calculations during drag
+    // userAdjustedTime is a copy of currentTime when drag starts
+    userAdjustedTime = new Date(currentTime);
     
     const clockRect = clockElement.getBoundingClientRect();
     const clockCenterX = clockRect.left + clockRect.width / 2;
@@ -698,17 +717,17 @@ function drag(e) {
       hours = hoursPart + minutesPart;
     }
     
-    // Create a new adjusted time
-    const adjustedTime = new Date(currentRealTime);
-    adjustedTime.setUTCHours(hours);
-    adjustedTime.setUTCMinutes(minutesPart * 60);
-    adjustedTime.setUTCSeconds(0);
+    // Start with base time (either fixed or current)
+    const baseTime = new Date(userAdjustedTime);
     
-    // Update global adjusted time
-    userAdjustedTime = adjustedTime;
+    // Set the new UTC time based on the dragged position
+    userAdjustedTime.setUTCHours(hours);
+    userAdjustedTime.setUTCMinutes(minutesPart * 60);
+    userAdjustedTime.setUTCSeconds(0);
     
-    // Update clock
-    updateClock();
+    // Update the display
+    updateCurrentTime();
+    updateAllTimeDisplays();
   }
   
   function endDrag() {
@@ -718,11 +737,12 @@ function drag(e) {
     // Remove dragging class
     sunElement.classList.remove('dragging');
     
-    if (fixedTime) {
+    if (useFixedTime) {
       // In fixed time mode, update the URL with new as-of parameter
       let formattedTime;
       
       // Check if we're using a non-UTC timezone from the 'local' parameter
+      const urlParams = new URLSearchParams(window.location.search);
       const localParam = urlParams.get('local');
       let useNatoCode = false;
       let natoCode = '';
@@ -758,7 +778,6 @@ function drag(e) {
       }
       
       // Create URL manually to avoid encoding colons
-      const urlParams = new URLSearchParams(window.location.search);
       urlParams.delete('as-of'); // Remove existing as-of parameter
       
       let newUrl = window.location.pathname;
@@ -773,7 +792,7 @@ function drag(e) {
       // Update the fixed time
       fixedTime = new Date(userAdjustedTime);
       
-      // Keep the user adjusted time (no spring back)
+      // Continue using the adjusted time (no spring back)
       isAnimatingSpringBack = false;
     } else {
       // In normal mode, create spring-back animation
@@ -781,7 +800,7 @@ function drag(e) {
       
       // Get current position and real time position
       const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
-      const realTerminatorAngle = (new Date().getUTCHours() + (new Date().getUTCMinutes() / 60)) * 15 + 180;
+      const realTerminatorAngle = (systemTime.getUTCHours() + (systemTime.getUTCMinutes() / 60)) * 15 + 180;
       
       // Calculate difference
       let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
@@ -831,8 +850,9 @@ function drag(e) {
           isAnimatingSpringBack = false;
           userAdjustedTime = null;
           
-          // Update clock with real time
-          updateClock();
+          // Update the time to system time
+          updateCurrentTime();
+          updateAllTimeDisplays();
         }
       }
       
@@ -842,6 +862,162 @@ function drag(e) {
       }
       springBackAnimation = requestAnimationFrame(animateSpringBack);
     }
+  }
+}
+
+function setupDraggableLocalTime() {
+  const localTimeElement = document.getElementById('local-time');
+  const clockElement = document.getElementById('clock');
+  
+  if (!localTimeElement) return;
+  
+  // Add a visual cue that the time is draggable
+  localTimeElement.style.cursor = 'grab';
+  localTimeElement.title = 'Drag to adjust timezone';
+  
+  let isDragging = false;
+  let startX, startY;
+  
+  // Mouse/Touch down event
+  localTimeElement.addEventListener('mousedown', startDrag);
+  localTimeElement.addEventListener('touchstart', startDrag);
+  
+  // Mouse/Touch move events
+  document.addEventListener('mousemove', drag);
+  document.addEventListener('touchmove', drag);
+  
+  // Mouse/Touch up events
+  document.addEventListener('mouseup', endDrag);
+  document.addEventListener('touchend', endDrag);
+  
+  function startDrag(e) {
+    e.preventDefault();
+    isDragging = true;
+    
+    // Add a dragging class
+    localTimeElement.classList.add('dragging');
+    localTimeElement.style.cursor = 'grabbing';
+    
+    // Get initial position
+    startX = e.clientX || e.touches[0].clientX;
+    startY = e.clientY || e.touches[0].clientY;
+  }
+  
+  function drag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    const clockRect = clockElement.getBoundingClientRect();
+    const clockCenterX = clockRect.left + clockRect.width / 2;
+    const clockCenterY = clockRect.top + clockRect.height / 2;
+    
+    // Get cursor position
+    const x = e.clientX || e.touches[0].clientX;
+    const y = e.clientY || e.touches[0].clientY;
+    
+    // Calculate angle relative to clock center
+    const dx = x - clockCenterX;
+    const dy = y - clockCenterY;
+    
+    // Get the angle from the mouse position in degrees (0-360)
+    const radians = Math.atan2(dy, dx);
+    let angleDegrees = radians * (180 / Math.PI);
+    if (angleDegrees < 0) angleDegrees += 360;
+    
+    // Use TeeZee to calculate the timezone offset from the angle
+    const hourOffset = TeeZee.getOffsetFromClockPosition(angleDegrees);
+    
+    // Round to nearest whole hour (no fractional hours)
+    const roundedOffset = Math.round(hourOffset);
+    
+    // Update display
+    userTimezoneOffsetHours = roundedOffset;
+    
+    // Update position
+    positionLocalTimeByTimezone();
+    
+    // Update time display with new offset
+    updateLocalTimeDisplay();
+    
+    // Update the timezone indicator during drag
+    updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
+  }
+  
+  function endDrag() {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    // Remove dragging class
+    localTimeElement.classList.remove('dragging');
+    localTimeElement.style.cursor = 'grab';
+    
+    // Update URL with new timezone
+    updateTimezoneQueryString(userTimezoneOffsetHours);
+  }
+  
+  // Helper function to update only the timezone indicator without changing URL
+  function updateTimezoneIndicatorOnly(offsetHours) {
+    // Format the offset using the shared utility function
+    const formattedOffset = formatTimezoneOffset(offsetHours);
+    
+    // Update just the timezone indicator
+    updateTimezoneIndicator(formattedOffset);
+  }
+}
+
+function updateTimezoneQueryString(offsetHours) {
+  // Get the current URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  // Format the offset for the URL
+  const formattedOffset = formatTimezoneOffset(offsetHours);
+  
+  // Update or add the local parameter
+  urlParams.set('local', formattedOffset);
+  
+  // Create new URL and update browser history
+  const newURL = `${window.location.pathname}?${urlParams.toString()}`;
+  window.history.pushState({ path: newURL }, '', newURL);
+  
+  // Update page title and timezone indicator
+  updateTimezoneIndicator(formattedOffset);
+}
+
+// Helper function to format timezone offset as NATO code or +/- format
+function formatTimezoneOffset(offsetHours) {
+  // Use TeeZee to format the offset
+  return TeeZee.formatOffset(offsetHours);
+}
+
+function updateTimezoneIndicator(timezone) {
+  let displayTimezone = timezone;
+  
+  // If it's a NATO code or numeric offset, format it properly for display
+  if (timezone.length === 1) {
+    // It's a NATO code, get additional info from TeeZee
+    const offset = TeeZee.parseTimezone(timezone);
+    const place = TeeZee.getPlaceName(offset);
+    displayTimezone = `${timezone} Time (${place})`;
+  } else if (timezone.startsWith('+') || timezone.startsWith('-') || timezone === '0') {
+    // It's a numeric offset
+    const offset = parseInt(timezone);
+    const abbr = TeeZee.getAbbreviation(offset);
+    const natoCode = TeeZee.getNatoCode(offset);
+    
+    if (abbr && abbr !== 'GMT') {
+      displayTimezone = `${abbr} (${natoCode})`;
+    } else {
+      displayTimezone = `GMT${offset === 0 ? '' : timezone} (${natoCode})`;
+    }
+  }
+  
+  // Update page title
+  document.title = `GoZulu - ${displayTimezone}`;
+  
+  // Update timezone indicator if it exists
+  const indicator = document.querySelector('.timezone-indicator');
+  if (indicator) {
+    indicator.textContent = `Using ${displayTimezone}`;
   }
 }
 

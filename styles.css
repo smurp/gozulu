@@ -245,6 +245,8 @@ body {
 
 #zulu-time {
   color: #FFFFFF;
+  position: relative;
+  z-index: 30;
 }
 
 #local-time {
@@ -257,6 +259,19 @@ body {
   white-space: nowrap;
   transform: translate(-50%, -50%);
   z-index: 15;
+  cursor: grab;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+#local-time:hover {
+  background-color: rgba(0, 20, 80, 0.8);
+}
+
+#local-time.dragging {
+  cursor: grabbing;
+  background-color: rgba(20, 40, 100, 0.9);
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow: 0 0 10px rgba(144, 238, 144, 0.5);
 }
 
 #hour-marks {
@@ -273,6 +288,12 @@ body {
   border-right: 6px solid transparent;
   border-bottom: 10px solid rgba(255, 255, 255, 0.5);
   /* Triangle points downward by default (will be rotated in JS) */
+  cursor: pointer;
+  transition: border-bottom-color 0.2s ease;
+}
+
+.hour-mark:hover {
+  border-bottom-color: rgba(144, 238, 144, 0.8);
 }
 
 #user-location-pin {
