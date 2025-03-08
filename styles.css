@@ -245,6 +245,8 @@ body {
 
 #zulu-time {
   color: #FFFFFF;
+  position: relative;
+  z-index: 30;
 }
 
 #local-time {
@@ -286,6 +288,12 @@ body {
   border-right: 6px solid transparent;
   border-bottom: 10px solid rgba(255, 255, 255, 0.5);
   /* Triangle points downward by default (will be rotated in JS) */
+  cursor: pointer;
+  transition: border-bottom-color 0.2s ease;
+}
+
+.hour-mark:hover {
+  border-bottom-color: rgba(144, 238, 144, 0.8);
 }
 
 #user-location-pin {

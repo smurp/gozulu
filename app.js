@@ -7,15 +7,8 @@ function positionLocalTimeByTimezone() {
   const clockElement = document.getElementById('clock');
   const radius = clockElement.offsetWidth / 2;
   
-  // Position local time based on timezone offset
-  // Convert the offset hours to degrees (each hour is 15 degrees)
-  // 0 (GMT) is at top (0 degrees), positive offsets go clockwise
-  // Negative sign because hours increase clockwise but angle increases counterclockwise
-  let angleDegrees = -userTimezoneOffsetHours * 15 + 270;
-  
-  // Ensure the angle is between 0 and 360
-  angleDegrees = angleDegrees % 360;
-  if (angleDegrees < 0) angleDegrees += 360;
+  // Use TeeZee to calculate the angle for positioning
+  const angleDegrees = TeeZee.getClockPositionAngle(userTimezoneOffsetHours);
   
   // Convert to radians
   const radians = angleDegrees * (Math.PI / 180);
@@ -115,76 +108,36 @@ function parseISO8601(dateString) {
 
 // Process timezone parameter and set customTimezoneOffset
 function processTimezoneParameter(overrideTimezone) {
-  // Check if it's a number like +8 or -8
-  if (/^[+-]\d+$/.test(overrideTimezone)) {
-    // Convert to hours
-    customTimezoneOffset = -parseInt(overrideTimezone) * 60; // Negative because getTimezoneOffset returns opposite sign
-    overrideTimezone = `GMT${overrideTimezone.startsWith('+') ? overrideTimezone : overrideTimezone}`;
+  // Use TeeZee to parse the timezone
+  const hourOffset = TeeZee.parseTimezone(overrideTimezone);
+  
+  // Set the custom timezone offset in minutes (negative because getTimezoneOffset returns opposite sign)
+  customTimezoneOffset = -hourOffset * 60;
+  
+  // Update userTimezoneOffsetHours
+  userTimezoneOffsetHours = hourOffset;
+  
+  // Format the timezone for display
+  let displayTimezone;
+  
+  if (overrideTimezone.length === 1) {
+    // If it's a NATO code
+    displayTimezone = `${overrideTimezone.toUpperCase()} Time`;
+  } else if (/^[+-]\d+$/.test(overrideTimezone)) {
+    // If it's a numeric offset
+    displayTimezone = `GMT${overrideTimezone}`;
   } else {
-    // Check if it's a NATO one-letter code
-    const natoMap = {
-      'Y': -12*60, // Yankee Time Zone (UTC-12)
-      'X': -11*60, // X-ray Time Zone (UTC-11)
-      'W': -10*60, // Whiskey Time Zone (UTC-10)
-      'V': -9*60,  // Victor Time Zone (UTC-9)
-      'U': -8*60,  // Uniform Time Zone (UTC-8)
-      'T': -7*60,  // Tango Time Zone (UTC-7)
-      'S': -6*60,  // Sierra Time Zone (UTC-6)
-      'R': -5*60,  // Romeo Time Zone (UTC-5)
-      'Q': -4*60,  // Quebec Time Zone (UTC-4)
-      'P': -3*60,  // Papa Time Zone (UTC-3)
-      'O': -2*60,  // Oscar Time Zone (UTC-2)
-      'N': -1*60,  // November Time Zone (UTC-1)
-      'Z': 0,      // Zulu Time Zone (UTC/GMT)
-      'A': 1*60,   // Alpha Time Zone (UTC+1)
-      'B': 2*60,   // Bravo Time Zone (UTC+2)
-      'C': 3*60,   // Charlie Time Zone (UTC+3)
-      'D': 4*60,   // Delta Time Zone (UTC+4)
-      'E': 5*60,   // Echo Time Zone (UTC+5)
-      'F': 6*60,   // Foxtrot Time Zone (UTC+6)
-      'G': 7*60,   // Golf Time Zone (UTC+7)
-      'H': 8*60,   // Hotel Time Zone (UTC+8)
-      'I': 9*60,   // India Time Zone (UTC+9)
-      'K': 10*60,  // Kilo Time Zone (UTC+10)
-      'L': 11*60,  // Lima Time Zone (UTC+11)
-      'M': 12*60   // Mike Time Zone (UTC+12)
-    };
-    
-    // Try to handle named timezones - this is a simplification
-    const timezoneMap = {
-      'PST': -8*60, 'PDT': -7*60, 'MST': -7*60, 'MDT': -6*60,
-      'CST': -6*60, 'CDT': -5*60, 'EST': -5*60, 'EDT': -4*60,
-      'UTC': 0, 'GMT': 0, 'BST': 1*60, 'CET': 1*60,
-      'CEST': 2*60, 'EET': 2*60, 'EEST': 3*60, 'MSK': 3*60,
-      'IST': 5.5*60, 'CST_ASIA': 8*60, 'JST': 9*60, 'AEST': 10*60,
-      'NZST': 12*60
-    };
-    
-    // Handle CST ambiguity (could be Central US or China)
-    if (overrideTimezone === 'CST_ASIA') {
-      overrideTimezone = 'CST';
-    }
-    
-    // Try standard timezone abbreviation first
-    if (timezoneMap[overrideTimezone] !== undefined) {
-      customTimezoneOffset = -timezoneMap[overrideTimezone]; // Negative because getTimezoneOffset returns opposite sign
-    } 
-    // Then try NATO code as a fallback
-    else if (overrideTimezone.length === 1 && natoMap[overrideTimezone.toUpperCase()] !== undefined) {
-      const natoCode = overrideTimezone.toUpperCase();
-      customTimezoneOffset = -natoMap[natoCode]; // Negative because getTimezoneOffset returns opposite sign
-      
-      // For display purposes, prefix NATO timezones with "NATO-"
-      overrideTimezone = `${natoCode} Time`;
+    // For standard abbreviations or unknown formats, use what was provided
+    // TeeZee can also provide a formatted version
+    const abbr = TeeZee.getAbbreviation(hourOffset);
+    if (abbr && abbr !== 'GMT') {
+      displayTimezone = abbr;
+    } else {
+      displayTimezone = TeeZee.formatOffset(hourOffset, 'offset');
     }
   }
   
-  // Update userTimezoneOffsetHours if we have a custom timezone
-  if (customTimezoneOffset !== null) {
-    userTimezoneOffsetHours = -customTimezoneOffset / 60;
-  }
-  
-  return overrideTimezone;
+  return displayTimezone;
 }
 
 // Function to update current time based on fixed time, user adjusted time, or system time
@@ -353,6 +306,49 @@ function createHourMarks() {
     // Rotate the triangle to point toward the center (inward)
     hourMark.style.transform = `translate(-50%, 0) rotate(${rotation+180}deg)`;
     
+    // Use TeeZee to calculate the hour offset from the hour position
+    // For a 24-hour clock, each hour mark is 15 degrees (360/24)
+    // Hour 0 (midnight UTC) is at the top, Hour 12 (noon UTC) is at the bottom
+    // Hours increase clockwise
+    
+    // Convert hour position to degrees (for calculation, not for display)
+    // Each hour is 15 degrees
+    const angleDegrees = i * 15;
+    
+    // Calculate the hour offset using TeeZee
+    // This makes sure we get the proper -12 to +12 range
+    const hourOffset = TeeZee.getOffsetFromClockPosition(angleDegrees);
+    
+    // Store the hour offset as a data attribute
+    hourMark.dataset.hourOffset = hourOffset;
+    
+    // Get timezone information from TeeZee for the tooltip
+    const natoCode = TeeZee.getNatoCode(hourOffset);
+    const placeName = TeeZee.getPlaceName(hourOffset);
+    const abbr = TeeZee.getAbbreviation(hourOffset);
+    
+    // Format the tooltip with comprehensive information
+    const timezoneName = `${abbr} - ${hourOffset >= 0 ? '+' : ''}${hourOffset} (${natoCode}) - ${placeName}`;
+    hourMark.title = timezoneName;
+    
+    // Add click event to set the timezone when clicking on an hour mark
+    hourMark.addEventListener('click', function() {
+      const offset = parseInt(this.dataset.hourOffset);
+      
+      // Update the userTimezoneOffsetHours
+      userTimezoneOffsetHours = offset;
+      
+      // Update the position and display
+      positionLocalTimeByTimezone();
+      updateLocalTimeDisplay();
+      
+      // Update timezone indicator immediately
+      updateTimezoneIndicatorOnly(offset);
+      
+      // Update the URL with the new timezone
+      updateTimezoneQueryString(offset);
+    });
+    
     hourMarksContainer.appendChild(hourMark);
   }
 }
@@ -459,13 +455,21 @@ function getTimeZoneDisplay() {
   const urlParams = new URLSearchParams(window.location.search);
   const overrideTimezone = urlParams.get('local');
   
-  // If we have a timezone parameter, use it (processTimezoneParameter already formatted it)
+  // If we have a timezone parameter, use it
   if (overrideTimezone) {
+    // Parse the timezone to get the offset
+    const offset = TeeZee.parseTimezone(overrideTimezone);
+    
     // For one-letter NATO codes, show the letter + "Time"
     if (overrideTimezone.length === 1) {
       return `${overrideTimezone.toUpperCase()} Time`;
+    } else if (/^[+-]\d+$/.test(overrideTimezone)) {
+      // For numeric offsets, format as GMT+X
+      return `GMT${overrideTimezone}`;
     }
-    return overrideTimezone;
+    
+    // For other formats, use the formatted name based on the parsed offset
+    return TeeZee.getAbbreviation(offset);
   }
   
   // Otherwise use system timezone
@@ -625,40 +629,12 @@ function getTimeZoneAbbreviation() {
     if (offsetMatch) {
       const sign = offsetMatch[1];
       const hours = parseInt(offsetMatch[2]);
+      const offset = sign === '-' ? -hours : hours;
       
-      // Map offset to NATO code
-      // NATO code map for UTC offsets
-      const natoByOffset = {
-        '-12': 'Y', // Yankee Time Zone (UTC-12)
-        '-11': 'X', // X-ray Time Zone (UTC-11) 
-        '-10': 'W', // Whiskey Time Zone (UTC-10)
-        '-9': 'V',  // Victor Time Zone (UTC-9)
-        '-8': 'U',  // Uniform Time Zone (UTC-8)
-        '-7': 'T',  // Tango Time Zone (UTC-7)
-        '-6': 'S',  // Sierra Time Zone (UTC-6)
-        '-5': 'R',  // Romeo Time Zone (UTC-5)
-        '-4': 'Q',  // Quebec Time Zone (UTC-4)
-        '-3': 'P',  // Papa Time Zone (UTC-3)
-        '-2': 'O',  // Oscar Time Zone (UTC-2)
-        '-1': 'N',  // November Time Zone (UTC-1)
-        '0': 'Z',   // Zulu Time Zone (UTC/GMT)
-        '1': 'A',   // Alpha Time Zone (UTC+1)
-        '2': 'B',   // Bravo Time Zone (UTC+2)
-        '3': 'C',   // Charlie Time Zone (UTC+3)
-        '4': 'D',   // Delta Time Zone (UTC+4)
-        '5': 'E',   // Echo Time Zone (UTC+5)
-        '6': 'F',   // Foxtrot Time Zone (UTC+6)
-        '7': 'G',   // Golf Time Zone (UTC+7)
-        '8': 'H',   // Hotel Time Zone (UTC+8)
-        '9': 'I',   // India Time Zone (UTC+9)
-        '10': 'K',  // Kilo Time Zone (UTC+10)
-        '11': 'L',  // Lima Time Zone (UTC+11)
-        '12': 'M'   // Mike Time Zone (UTC+12)
-      };
-      
-      const offsetHours = (sign === '-' ? '-' : '') + hours;
-      if (natoByOffset[offsetHours]) {
-        return natoByOffset[offsetHours];
+      // Get the NATO code using TeeZee
+      const natoCode = TeeZee.getNatoCode(offset);
+      if (natoCode) {
+        return natoCode;
       }
     }
   }
@@ -943,25 +919,16 @@ function setupDraggableLocalTime() {
     const dx = x - clockCenterX;
     const dy = y - clockCenterY;
     
-    // Get the angle from the mouse position
-    // This is exactly what we need to directly calculate the timezone offset
-    const radians = Math.atan2(dy, dx); 
+    // Get the angle from the mouse position in degrees (0-360)
+    const radians = Math.atan2(dy, dx);
     let angleDegrees = radians * (180 / Math.PI);
-    
-    // Convert to 0-360 range
     if (angleDegrees < 0) angleDegrees += 360;
     
-    // In positionLocalTimeByTimezone, we convert from timezone to angle using:
-    // angleDegrees = (-userTimezoneOffsetHours * 15 + 270) % 360
+    // Use TeeZee to calculate the timezone offset from the angle
+    const hourOffset = TeeZee.getOffsetFromClockPosition(angleDegrees);
     
-    // So to go from angle to timezone, we solve this equation:
-    // angleDegrees = -userTimezoneOffsetHours * 15 + 270
-    // userTimezoneOffsetHours = (270 - angleDegrees) / 15
-    
-    const newOffset = (270 - angleDegrees) / 15;
-    
-    // Round to nearest quarter hour
-    const roundedOffset = Math.round(newOffset * 4) / 4;
+    // Round to nearest whole hour (no fractional hours)
+    const roundedOffset = Math.round(hourOffset);
     
     // Update display
     userTimezoneOffsetHours = roundedOffset;
@@ -971,6 +938,9 @@ function setupDraggableLocalTime() {
     
     // Update time display with new offset
     updateLocalTimeDisplay();
+    
+    // Update the timezone indicator during drag
+    updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
   }
   
   function endDrag() {
@@ -984,6 +954,15 @@ function setupDraggableLocalTime() {
     // Update URL with new timezone
     updateTimezoneQueryString(userTimezoneOffsetHours);
   }
+  
+  // Helper function to update only the timezone indicator without changing URL
+  function updateTimezoneIndicatorOnly(offsetHours) {
+    // Format the offset using the shared utility function
+    const formattedOffset = formatTimezoneOffset(offsetHours);
+    
+    // Update just the timezone indicator
+    updateTimezoneIndicator(formattedOffset);
+  }
 }
 
 function updateTimezoneQueryString(offsetHours) {
@@ -991,26 +970,7 @@ function updateTimezoneQueryString(offsetHours) {
   const urlParams = new URLSearchParams(window.location.search);
   
   // Format the offset for the URL
-  // Convert to the sign convention for the URL parameter
-  let formattedOffset;
-  
-  // Convert to nearest whole or half hour
-  const offsetRounded = Math.round(offsetHours * 2) / 2;
-  
-  // Try to find a NATO code for the timezone
-  const natoCodeMap = {
-    '-12': 'Y', '-11': 'X', '-10': 'W', '-9': 'V', '-8': 'U', '-7': 'T', '-6': 'S', '-5': 'R',
-    '-4': 'Q', '-3': 'P', '-2': 'O', '-1': 'N', '0': 'Z', '1': 'A', '2': 'B', '3': 'C',
-    '4': 'D', '5': 'E', '6': 'F', '7': 'G', '8': 'H', '9': 'I', '10': 'K', '11': 'L', '12': 'M'
-  };
-  
-  // If it's a whole hour offset and we have a NATO code, use that
-  if (Number.isInteger(offsetRounded) && natoCodeMap[offsetRounded.toString()] !== undefined) {
-    formattedOffset = natoCodeMap[offsetRounded.toString()];
-  } else {
-    // Otherwise use +/- format
-    formattedOffset = offsetRounded >= 0 ? `+${offsetRounded}` : `${offsetRounded}`;
-  }
+  const formattedOffset = formatTimezoneOffset(offsetHours);
   
   // Update or add the local parameter
   urlParams.set('local', formattedOffset);
@@ -1023,23 +983,41 @@ function updateTimezoneQueryString(offsetHours) {
   updateTimezoneIndicator(formattedOffset);
 }
 
+// Helper function to format timezone offset as NATO code or +/- format
+function formatTimezoneOffset(offsetHours) {
+  // Use TeeZee to format the offset
+  return TeeZee.formatOffset(offsetHours);
+}
+
 function updateTimezoneIndicator(timezone) {
-  // Update page title
   let displayTimezone = timezone;
   
-  // If it's a NATO code, format it properly
+  // If it's a NATO code or numeric offset, format it properly for display
   if (timezone.length === 1) {
-    displayTimezone = `${timezone} Time`;
-  } else if (timezone.startsWith('+') || timezone.startsWith('-')) {
-    displayTimezone = `GMT${timezone}`;
+    // It's a NATO code, get additional info from TeeZee
+    const offset = TeeZee.parseTimezone(timezone);
+    const place = TeeZee.getPlaceName(offset);
+    displayTimezone = `${timezone} Time (${place})`;
+  } else if (timezone.startsWith('+') || timezone.startsWith('-') || timezone === '0') {
+    // It's a numeric offset
+    const offset = parseInt(timezone);
+    const abbr = TeeZee.getAbbreviation(offset);
+    const natoCode = TeeZee.getNatoCode(offset);
+    
+    if (abbr && abbr !== 'GMT') {
+      displayTimezone = `${abbr} (${natoCode})`;
+    } else {
+      displayTimezone = `GMT${offset === 0 ? '' : timezone} (${natoCode})`;
+    }
   }
   
+  // Update page title
   document.title = `GoZulu - ${displayTimezone}`;
   
   // Update timezone indicator if it exists
   const indicator = document.querySelector('.timezone-indicator');
   if (indicator) {
-    indicator.textContent = `Using ${displayTimezone} timezone`;
+    indicator.textContent = `Using ${displayTimezone}`;
   }
 }
 
