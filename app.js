@@ -375,7 +375,16 @@ function createHourMarks() {
         placeNameEl.className = 'place-name';
         // Add data attribute to identify which hour marker this place name belongs to
         placeNameEl.dataset.hourIndex = hourMarkerIndex;
-        placeNameEl.textContent = `${place} (${abbr})`;
+        
+        // Format text differently based on side of clock
+        // For the left side (GMT+1 to GMT+12), use "(TZ) place name" format and flip text
+        const isLeftSide = hourIndex >= 12 && hourIndex <= 23;
+        if (isLeftSide) {
+          placeNameEl.textContent = `(${abbr}) ${place}`;
+          placeNameEl.dataset.leftSide = "true";
+        } else {
+          placeNameEl.textContent = `${place} (${abbr})`;
+        }
         
         // Use the hour index directly for positioning
         // Calculate the proper angle in degrees (0 at top, clockwise)
@@ -428,7 +437,14 @@ function createHourMarks() {
         // Update the position
         placeNameEl.style.left = `calc(50% + ${offsetX}px)`;
         placeNameEl.style.top = `calc(50% + ${offsetY}px)`;
-        placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270}deg)`;
+        // Rotate differently based on which side of the clock the marker is on
+        if (isLeftSide) {
+          // For left side (GMT+1 to GMT+12), rotate an additional 180° to make text right-side up
+          placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270 + 180}deg)`;
+        } else {
+          // For right side (GMT-1 to GMT-12), use the original rotation
+          placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270}deg)`;
+        }
         placeNameEl.style.visibility = 'visible'; // Make it visible again
         placeNameEl.style.zIndex = '100';
         placeNameEl.style.cursor = 'pointer';
