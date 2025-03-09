@@ -433,8 +433,8 @@ function updateLocalTimeDisplay() {
   const formattedLocalHours = String(localHours); //.padStart(2, '0');
   const formattedLocalMinutes = String(calculatedLocalMinutes).padStart(2, '0');
   
-  // Get timezone abbreviation - either from override or system
-  const timeZoneAbbr = getTimeZoneDisplay();
+  // Get timezone abbreviation directly from TeeZee - prioritizes abbreviation for display
+  const timeZoneAbbr = TeeZee.getFormattedTimezoneDisplay(userTimezoneOffsetHours);
   
   // Get or create the local time element
   let localTimeElement = document.getElementById('local-time');
@@ -461,13 +461,14 @@ function getTimeZoneDisplay() {
     const offset = TeeZee.parseTimezone(overrideTimezone);
     
     // For one-letter NATO codes, show the letter + "Time"
+    /*
     if (overrideTimezone.length === 1) {
       return `${overrideTimezone.toUpperCase()}`;
     } else if (/^[+-]\d+$/.test(overrideTimezone)) {
       // For numeric offsets, format as GMT+X
       return `GMT${overrideTimezone}`;
     }
-    
+    */
     // For other formats, use the formatted name based on the parsed offset
     return TeeZee.getAbbreviation(offset);
   }
@@ -953,15 +954,35 @@ function setupDraggableLocalTime() {
     
     // Update URL with new timezone
     updateTimezoneQueryString(userTimezoneOffsetHours);
+    updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
   }
   
   // Helper function to update only the timezone indicator without changing URL
   function updateTimezoneIndicatorOnly(offsetHours) {
-    // Format the offset using the shared utility function
-    const formattedOffset = formatTimezoneOffset(offsetHours);
+    // Get formatted timezone info using TeeZee
+    const abbr = TeeZee.getAbbreviation(offsetHours);
+    const natoCode = TeeZee.getNatoCode(offsetHours);
+    const place = TeeZee.getPlaceName(offsetHours);
     
-    // Update just the timezone indicator
-    updateTimezoneIndicator(formattedOffset);
+    // Create a display string that prioritizes the abbreviation
+    let displayTimezone;
+    
+    if (abbr && abbr) {
+      // Always prefer the abbreviation during dragging
+      displayTimezone = `${abbr} (${natoCode} NATO)`;
+    }
+    
+    // Update page title
+    document.title = `GoZulu - ${displayTimezone}`;
+    
+    // Update timezone indicator if it exists
+    const indicator = document.querySelector('.timezone-indicator');
+    if (indicator) {
+      indicator.textContent = `Using ${displayTimezone}`;
+    }
+    
+    // Also update the local time display to show the new timezone immediately
+    updateLocalTimeDisplay();
   }
 }
 
@@ -997,7 +1018,13 @@ function updateTimezoneIndicator(timezone) {
     // It's a NATO code, get additional info from TeeZee
     const offset = TeeZee.parseTimezone(timezone);
     const place = TeeZee.getPlaceName(offset);
-    displayTimezone = `${timezone} Time (${place})`;
+    const abbr = TeeZee.getAbbreviation(offset);
+    
+    if (abbr && abbr !== 'GMT') {
+      displayTimezone = `${abbr} (${timezone})`;
+    } else {
+      displayTimezone = `${timezone} Time (${place})`;
+    }
   } else if (timezone.startsWith('+') || timezone.startsWith('-') || timezone === '0') {
     // It's a numeric offset
     const offset = parseInt(timezone);

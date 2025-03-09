@@ -117,6 +117,20 @@ const TeeZee = {
   },
 
   /**
+   * Gets a formatted timezone display for the local time
+   * Prioritizes abbreviation over NATO code for display
+   * @param {number} hourOffset - The hour offset
+   * @returns {string} - Formatted timezone string for display
+   */
+  getFormattedTimezoneDisplay: function(hourOffset) {
+    const normalized = this.normalizeHourOffset(hourOffset);
+    const minutesOffset = normalized * 60;
+    const tzData = this.timezones[minutesOffset.toString()] || {};
+
+    return tzData.abbr;
+  },
+
+  /**
    * Parses a timezone string (NATO code or offset) to get the hour offset
    * @param {string} timezoneStr - The timezone string
    * @returns {number} - The hour offset
