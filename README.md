@@ -65,7 +65,8 @@ In fixed time mode:
 ### Interactive Features
 
 - **Draggable Sun**: Click and drag the sun to adjust the displayed time. The sun will snap to 15-minute intervals.
-- **Draggable Local Time**: Click and drag the local time display to adjust your timezone. The display snaps to whole hour increments, updates in real-time, and updates the URL with the new timezone. You can also click on the hour markers around the clock to directly select a timezone.
+- **Draggable Local Time**: Click and drag the local time display to adjust your timezone. The display snaps to whole hour increments, updates in real-time, and updates the URL with the new timezone.
+- **Interactive Hour Markers**: Click on any hour marker around the clock to display the place name and timezone information for that location. Click again to hide the information.
 - **Spring-Back Animation**: When you release the sun, it will animate back to the current real time with a spring-like motion.
 - **Time Adjustment**: All times update as you drag the sun, allowing you to see what time it would be anywhere in the world at different times of day.
 
@@ -137,6 +138,9 @@ This project is available under the MIT License.
 
 ## Version History
 
+- 0.5.3 - Made text unselectable and improved Help
+- 0.5.2 - Added left/right text formatting for place names
+- 0.5.1 - Clicking hour markers now toggles place names display
 - 0.5.0 - Added draggable local time label to adjust timezone with whole-hour increments and clickable hour markers
 - 0.4.5 - Major refactoring for time model and timezone handling
 - 0.4.4 - Fixed bug with local timezone display
