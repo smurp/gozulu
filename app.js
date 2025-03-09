@@ -319,8 +319,9 @@ function createHourMarks() {
     // This makes sure we get the proper -12 to +12 range
     const hourOffset = TeeZee.getOffsetFromClockPosition(angleDegrees);
     
-    // Store the hour offset as a data attribute
+    // Store the hour offset and index as data attributes
     hourMark.dataset.hourOffset = hourOffset;
+    hourMark.dataset.index = i;
     
     // Get timezone information from TeeZee for the tooltip
     const natoCode = TeeZee.getNatoCode(hourOffset);
@@ -331,22 +332,118 @@ function createHourMarks() {
     const timezoneName = `${abbr} - ${hourOffset >= 0 ? '+' : ''}${hourOffset} (${natoCode}) - ${placeName}`;
     hourMark.title = timezoneName;
     
-    // Add click event to set the timezone when clicking on an hour mark
-    hourMark.addEventListener('click', function() {
-      const offset = parseInt(this.dataset.hourOffset);
+    // Add click event to toggle the place name when clicking on an hour mark
+    hourMark.addEventListener('click', function(e) {
+      // Get the index of this hour mark which corresponds directly to the hour (0-23)
+      const hourIndex = parseInt(this.dataset.index);
       
-      // Update the userTimezoneOffsetHours
-      userTimezoneOffsetHours = offset;
+      // Calculate the timezone offset correctly based on hour index
+      // On a 24-hour clock with opposite direction:
+      // Hour 0 (top) is GMT+0
+      // Clockwise: Hours 1-12 are GMT-1 to GMT-12
+      // Hours 13-23 are GMT+11 to GMT+1
+      let offset;
+      if (hourIndex === 0) {
+        // Top of clock is GMT+0
+        offset = 0;
+      } else if (hourIndex <= 12) {
+        // First half of the clock (clockwise from top to bottom) is GMT-1 to GMT-12
+        offset = -hourIndex;
+      } else {
+        // Second half of the clock (clockwise from bottom to top) is GMT+11 to GMT+1
+        offset = 24 - hourIndex;
+      }
       
-      // Update the position and display
-      positionLocalTimeByTimezone();
-      updateLocalTimeDisplay();
+      // Get the correct timezone information based on the offset
+      const place = TeeZee.getPlaceName(offset);
+      const abbr = TeeZee.getAbbreviation(offset);
+      const natoCode = TeeZee.getNatoCode(offset);
       
-      // Update timezone indicator immediately
-      updateTimezoneIndicatorOnly(offset);
+      // Get the hour marker's index to use as an identifier
+      const hourMarkerIndex = hourIndex;
       
-      // Update the URL with the new timezone
-      updateTimezoneQueryString(offset);
+      // Check if a place name already exists for this hour marker
+      const existingPlaceName = document.querySelector(`.place-name[data-hour-index="${hourMarkerIndex}"]`);
+      
+      // Toggle place name display
+      if (existingPlaceName) {
+        // If place name is already shown, remove it
+        existingPlaceName.remove();
+      } else {
+        // Create place name label
+        const placeNameEl = document.createElement('div');
+        placeNameEl.className = 'place-name';
+        // Add data attribute to identify which hour marker this place name belongs to
+        placeNameEl.dataset.hourIndex = hourMarkerIndex;
+        placeNameEl.textContent = `${place} (${abbr})`;
+        
+        // Use the hour index directly for positioning
+        // Calculate the proper angle in degrees (0 at top, clockwise)
+        const angleDegrees = hourIndex * 15;
+        // Convert to radians for positioning calculations
+        const angleRadians = angleDegrees * (Math.PI / 180);
+        
+        // No longer need debug output
+        
+        // First create and style the element
+        const clockElement = document.getElementById('clock');
+        const clockRadius = clockElement.offsetWidth / 2;
+        
+        // Style the place name element
+        placeNameEl.style.position = 'absolute';
+        placeNameEl.style.transformOrigin = 'center';
+        placeNameEl.style.color = '#90EE90';
+        placeNameEl.style.fontSize = '12px';
+        placeNameEl.style.whiteSpace = 'nowrap';
+        placeNameEl.style.textShadow = '0 0 3px #000, 0 0 5px #000';
+        placeNameEl.style.padding = '3px 6px';
+        placeNameEl.style.backgroundColor = 'rgba(0, 0, 30, 0.6)';
+        placeNameEl.style.borderRadius = '4px';
+        placeNameEl.style.userSelect = 'none';
+        
+        // Add it to the DOM temporarily to get its width
+        placeNameEl.style.visibility = 'hidden'; // Hide it initially
+        clockElement.appendChild(placeNameEl);
+        
+        // Get the width of the text element
+        const textWidth = placeNameEl.offsetWidth;
+        
+        // Calculate the target point at 81% of radius
+        const targetDistance = clockRadius * 0.81;
+        
+        // Adjust the position so the END of the text (not the center) is at the target point
+        // The adjustment depends on the angle
+        let adjustedDistance;
+        
+        // Calculate the distance to position the CENTER of the text
+        // We need to subtract half the text width from the target position
+        // But we need to account for the angle too
+        const textWidthAlongRay = textWidth / 2;
+        adjustedDistance = targetDistance - textWidthAlongRay;
+        
+        // Use the adjusted distance for positioning
+        const offsetX = Math.sin(angleRadians) * adjustedDistance;
+        const offsetY = -Math.cos(angleRadians) * adjustedDistance;
+        
+        // Update the position
+        placeNameEl.style.left = `calc(50% + ${offsetX}px)`;
+        placeNameEl.style.top = `calc(50% + ${offsetY}px)`;
+        placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270}deg)`;
+        placeNameEl.style.visibility = 'visible'; // Make it visible again
+        placeNameEl.style.zIndex = '100';
+        placeNameEl.style.cursor = 'pointer';
+        
+        // Add the place name element to the hour mark
+        clockElement.appendChild(placeNameEl);
+        
+        // Prevent clicks on the place name from doing anything except stopping propagation
+        placeNameEl.addEventListener('click', function(e) {
+          e.stopPropagation(); // Just prevent the click from reaching the clock
+        });
+      }
+      
+      // Prevent the event from propagating to the clock
+      e.stopPropagation();
     });
     
     hourMarksContainer.appendChild(hourMark);
