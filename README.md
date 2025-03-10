@@ -154,4 +154,4 @@ This project is available under the MIT License.
 
 ## Credits
 
-Developed by [Your Name/Organization]
+Developed by [Shawn Murphy](https://smurp.com) / https://noosphere.org
