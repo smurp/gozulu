@@ -194,14 +194,29 @@ body {
   overflow: hidden;
 }
 
-#earth-image {
+#earth-svg {
   position: absolute;
   width: 100%;
   height: 100%;
-  background-image: url('images/earth-north-pole.jpg');
-  background-size: cover;
-  background-position: center;
+  display: block;
   border-radius: 50%;
+}
+
+.globe-ocean {
+  fill: #0a2548;
+}
+
+.globe-land {
+  fill: #3a5f8a;
+}
+
+.globe-borders {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 #terminator {
@@ -211,11 +226,9 @@ body {
   border-radius: 50%;
   background: linear-gradient(0deg,
     rgba(0, 0, 0, 0.8) 0%,
-    rgba(0, 0, 0, 0.8) 30%,
-    rgba(0, 0, 0, 0) 45%,
-    rgba(0, 0, 0, 0) 70%,
-    rgba(0, 0, 0, 0) 70%,
-    rgba(0, 0, 0, 0) 70%);
+    rgba(0, 0, 0, 0.8) 45%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0) 100%);
   pointer-events: none;
 }
 

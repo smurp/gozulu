@@ -40,7 +40,7 @@
     
     <div id="clock">
       <div id="earth-container">
-        <div id="earth-image" style="transform: rotate(-135deg);"></div>
+        <svg id="earth-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
         <div id="terminator"></div>
         <div id="sun-position"></div>
         <div id="user-location-pin">
@@ -48,11 +48,11 @@
           <div class="pin-pulse"></div>
         </div>
       </div>
-      
+
       <div id="hour-marks"></div>
     </div>
     
-    <div id="version-display">v0.3.2</div>
+    <div id="version-display">v0.6.1</div>
     
     <!-- Local time is positioned dynamically via JavaScript -->
   </div>
@@ -78,7 +78,11 @@
     </div>
   </dialog>
 
+  <script src="vendor/d3-array.min.js"></script>
+  <script src="vendor/d3-geo.min.js"></script>
+  <script src="vendor/topojson-client.min.js"></script>
   <script src="teezee.js"></script>
+  <script src="globe.js"></script>
   <script src="app.js"></script>
   <script>
     // Register service worker for PWA functionality
