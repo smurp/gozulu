@@ -132,6 +132,10 @@ The application works on all modern browsers including:
 - Firefox
 - Edge
 
+## Other 24 Hour Clock Designs
+
+- https://www.youtube.com/shorts/zr9DVTdkoYM
+
 ## License
 
 This project is available under the MIT License.

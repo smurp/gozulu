@@ -219,6 +219,29 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
+.tz-outboard-time {
+  position: absolute;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: bold;
+  color: #90EE90;
+  background-color: rgba(0, 0, 51, 0.7);
+  padding: 5px 10px;
+  border-radius: 5px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  z-index: 14;
+  user-select: none;
+  pointer-events: none;
+}
+
+@media (max-width: 550px) {
+  .tz-outboard-time {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+}
+
 #terminator {
   position: absolute;
   width: 100%;
@@ -266,30 +289,18 @@ body {
   z-index: 30;
 }
 
-#local-time {
-  color: #90EE90;
-  position: absolute;
-  padding: 5px 10px;
-  background-color: rgba(0, 0, 51, 0.7);
-  border-radius: 5px;
-  font-size: 16px;
-  white-space: nowrap;
-  transform: translate(-50%, -50%);
-  z-index: 15;
+.tz-outboard-time.tz-local {
   cursor: grab;
+  pointer-events: auto;
+  z-index: 15;
   transition: background-color 0.3s ease, transform 0.2s ease;
-  /* Prevent text selection */
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 
-#local-time:hover {
+.tz-outboard-time.tz-local:hover {
   background-color: rgba(0, 20, 80, 0.8);
 }
 
-#local-time.dragging {
+.tz-outboard-time.tz-local.dragging {
   cursor: grabbing;
   background-color: rgba(20, 40, 100, 0.9);
   transform: translate(-50%, -50%) scale(1.05);
