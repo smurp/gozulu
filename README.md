@@ -124,6 +124,12 @@ To deploy to a production server:
 3. Set proper cache headers for static assets
 4. Upload the files to your web server
 
+To deploy to gozulu.app using GitHub Pages publishing of the 'live' branch:
+
+```bash
+git checkout live && git merge main -m "deploy" && git push && git checkout main
+```
+
 ## Browser Compatibility
 
 The application works on all modern browsers including:
