@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gozulu-v0.8.7';
+const CACHE_NAME = 'gozulu-v0.8.8';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
