@@ -5,7 +5,8 @@
 (function () {
   const SIZE = 1000;
   const CENTER = SIZE / 2;
-  const CLIP_ANGLE_DEG = 150; // 150° from the North Pole = 60°S southern limit
+  const CLIP_ANGLE_DEG = 145; // 145° from the North Pole = 55°S southern limit
+                              // (60°S is mostly bare Southern Ocean — wasted resolution)
 
   // The disc is inset inside the clock so the sun (orbiting at 91% radius
   // per app.js sunScale) has a visible channel around it, matching the
