@@ -142,6 +142,14 @@ This project is available under the MIT License.
 
 ## Version History
 
+- 0.8.2 - Fixed-time banner now appears on drag-pin and disappears on unpin (was orphaned); centralized outboard-label distance constant
+- 0.8.1 - Tuned pin-dwell threshold
+- 0.8.0 - Pin / unpin the sun via drag gesture: hold ~200ms before release to pin (writes ?as-of=), quick release unpins and springs back to realtime
+- 0.7.2 - Unified the user's local-time display with the toggled-timezone outboard machinery (single rendering and update path)
+- 0.7.1 - Tri-state hour-mark toggle: off → outboard time → outboard time + inboard city; click cycles
+- 0.7.0 - Click an hour triangle to show a live clock for that timezone; multiple can be toggled at once
+- 0.6.1 - Terminator brought closer to the pole for more anatomically correct day/night split
+- 0.6.0 - Replaced static Earth image with D3 azimuthal equidistant projection: north pole at center, clipped at 60°S, all inhabited latitudes shown with equal respect; D3 + world-atlas TopoJSON vendored locally so PWA works offline
 - 0.5.3 - Made text unselectable and improved Help
 - 0.5.2 - Added left/right text formatting for place names
 - 0.5.1 - Clicking hour markers now toggles place names display

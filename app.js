@@ -339,27 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Process timezone parameter first
   if (overrideTimezone) {
-    // Process timezone parameter - this function will set customTimezoneOffset
     overrideTimezone = processTimezoneParameter(overrideTimezone);
-    
-    // Update the page title to reflect the custom timezone
     document.title = `GoZulu - ${overrideTimezone} Time`;
-    
-    // Add a visual indicator that we're using a custom timezone
-    const container = document.querySelector('.container');
-    const timezoneIndicator = document.createElement('div');
-    timezoneIndicator.className = 'timezone-indicator';
-    timezoneIndicator.textContent = `Using ${overrideTimezone} timezone`;
-    timezoneIndicator.style.position = 'absolute';
-    timezoneIndicator.style.top = asOfParam ? '30px' : '10px'; // Position below fixed time if it exists
-    timezoneIndicator.style.left = '50%';
-    timezoneIndicator.style.transform = 'translateX(-50%)';
-    timezoneIndicator.style.fontSize = '12px';
-    timezoneIndicator.style.color = '#90EE90';
-    timezoneIndicator.style.textAlign = 'center';
-    timezoneIndicator.style.fontWeight = 'bold';
-    timezoneIndicator.style.zIndex = '100';
-    container.appendChild(timezoneIndicator);
   } else {
     // Use system timezone if no override
     userTimezoneOffsetHours = -systemTime.getTimezoneOffset() / 60;
@@ -1042,15 +1023,12 @@ function endDragLocal() {
   updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
 }
 
-// Update the page title and the timezone indicator banner without touching
-// the URL or the label position.
+// Update the page title without touching the URL or the label position.
 function updateTimezoneIndicatorOnly(offsetHours) {
   const abbr = TeeZee.getAbbreviation(offsetHours);
   const natoCode = TeeZee.getNatoCode(offsetHours);
   const displayTimezone = abbr ? `${abbr} (${natoCode} NATO)` : `GMT`;
   document.title = `GoZulu - ${displayTimezone}`;
-  const indicator = document.querySelector('.timezone-indicator');
-  if (indicator) indicator.textContent = `Using ${displayTimezone}`;
   updateToggledTimezoneDisplays();
 }
 
@@ -1080,40 +1058,30 @@ function formatTimezoneOffset(offsetHours) {
 
 function updateTimezoneIndicator(timezone) {
   let displayTimezone = timezone;
-  
-  // If it's a NATO code or numeric offset, format it properly for display
+
   if (timezone.length === 1) {
-    // It's a NATO code, get additional info from TeeZee
+    // NATO single-letter code
     const offset = TeeZee.parseTimezone(timezone);
     const place = TeeZee.getPlaceName(offset);
     const abbr = TeeZee.getAbbreviation(offset);
-    
     if (abbr && abbr !== 'GMT') {
       displayTimezone = `${abbr} (${timezone})`;
     } else {
       displayTimezone = `${timezone} Time (${place})`;
     }
   } else if (timezone.startsWith('+') || timezone.startsWith('-') || timezone === '0') {
-    // It's a numeric offset
+    // Numeric offset
     const offset = parseInt(timezone);
     const abbr = TeeZee.getAbbreviation(offset);
     const natoCode = TeeZee.getNatoCode(offset);
-    
     if (abbr && abbr !== 'GMT') {
       displayTimezone = `${abbr} (${natoCode})`;
     } else {
       displayTimezone = `GMT${offset === 0 ? '' : timezone} (${natoCode})`;
     }
   }
-  
-  // Update page title
+
   document.title = `GoZulu - ${displayTimezone}`;
-  
-  // Update timezone indicator if it exists
-  const indicator = document.querySelector('.timezone-indicator');
-  if (indicator) {
-    indicator.textContent = `Using ${displayTimezone}`;
-  }
 }
 
 function adjustClockSize() {
