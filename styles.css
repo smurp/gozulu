@@ -194,14 +194,59 @@ body {
   overflow: hidden;
 }
 
-#earth-image {
+#earth-svg {
   position: absolute;
   width: 100%;
   height: 100%;
-  background-image: url('images/earth-north-pole.jpg');
-  background-size: cover;
-  background-position: center;
+  display: block;
   border-radius: 50%;
+}
+
+.globe-ocean {
+  fill: #0a2548;
+}
+
+.globe-land {
+  fill: #3a5f8a;
+}
+
+.globe-borders {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Hidden for now — redundant with the large Zulu time at screen top.
+   Element is still created/removed by the URL set/clear lifecycle so it can
+   be re-enabled by removing this rule. */
+.fixed-time-indicator {
+  display: none;
+}
+
+.tz-outboard-time {
+  position: absolute;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: bold;
+  color: #90EE90;
+  background-color: rgba(0, 0, 51, 0.7);
+  padding: 5px 10px;
+  border-radius: 5px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  z-index: 14;
+  user-select: none;
+  pointer-events: none;
+}
+
+@media (max-width: 550px) {
+  .tz-outboard-time {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
 }
 
 #terminator {
@@ -211,11 +256,9 @@ body {
   border-radius: 50%;
   background: linear-gradient(0deg,
     rgba(0, 0, 0, 0.8) 0%,
-    rgba(0, 0, 0, 0.8) 30%,
-    rgba(0, 0, 0, 0) 45%,
-    rgba(0, 0, 0, 0) 70%,
-    rgba(0, 0, 0, 0) 70%,
-    rgba(0, 0, 0, 0) 70%);
+    rgba(0, 0, 0, 0.8) 45%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0) 100%);
   pointer-events: none;
 }
 
@@ -238,6 +281,22 @@ body {
   box-shadow: 0 0 20px 15px rgba(255, 215, 0, 0.8);
 }
 
+/* During a drag, after the user has held still long enough that releasing
+   would PIN. Subtle scale-up + brighter halo so the gesture is discoverable. */
+#sun-position.pinning {
+  transform: translate(-50%, -50%) scale(1.18);
+  box-shadow: 0 0 28px 18px rgba(255, 235, 120, 1);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Persistent state: the sun is pinned (page has ?as-of=). Slightly warmer
+   color and a thin ring to distinguish from the running-clock sun. */
+#sun-position.pinned {
+  background-color: #FFB347;
+  box-shadow: 0 0 15px 10px rgba(255, 165, 0, 0.6),
+              0 0 0 2px rgba(255, 215, 0, 0.9) inset;
+}
+
 .time-display {
   font-family: 'Courier New', monospace;
   font-size: 24px;
@@ -253,30 +312,18 @@ body {
   z-index: 30;
 }
 
-#local-time {
-  color: #90EE90;
-  position: absolute;
-  padding: 5px 10px;
-  background-color: rgba(0, 0, 51, 0.7);
-  border-radius: 5px;
-  font-size: 16px;
-  white-space: nowrap;
-  transform: translate(-50%, -50%);
-  z-index: 15;
+.tz-outboard-time.tz-local {
   cursor: grab;
+  pointer-events: auto;
+  z-index: 15;
   transition: background-color 0.3s ease, transform 0.2s ease;
-  /* Prevent text selection */
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 
-#local-time:hover {
+.tz-outboard-time.tz-local:hover {
   background-color: rgba(0, 20, 80, 0.8);
 }
 
-#local-time.dragging {
+.tz-outboard-time.tz-local.dragging {
   cursor: grabbing;
   background-color: rgba(20, 40, 100, 0.9);
   transform: translate(-50%, -50%) scale(1.05);

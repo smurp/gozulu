@@ -1,29 +1,5 @@
 let sunScale = 0.91;
 let mapOffsetToGreenwichDegrees = 135;
-function positionLocalTimeByTimezone() {
-  const localTimeElement = document.getElementById('local-time');
-  if (!localTimeElement || userTimezoneOffsetHours === null) return;
-  
-  const clockElement = document.getElementById('clock');
-  const radius = clockElement.offsetWidth / 2;
-  
-  // Use TeeZee to calculate the angle for positioning
-  const angleDegrees = TeeZee.getClockPositionAngle(userTimezoneOffsetHours);
-  
-  // Convert to radians
-  const radians = angleDegrees * (Math.PI / 180);
-  
-  // Position local time outside the clock face
-  const textDistanceFactor = 1.3; // Position 30% outside the clock radius
-  const textX = Math.cos(radians) * (radius * textDistanceFactor) + radius;
-  const textY = Math.sin(radians) * (radius * textDistanceFactor) + radius;
-  
-  localTimeElement.style.left = `${textX}px`;
-  localTimeElement.style.top = `${textY}px`;
-  
-  // Store the current position angle for dragging reference
-  localTimeElement.dataset.angleDegrees = angleDegrees;
-}
 
 // Global state variables
 let currentTime = null;      // The main time reference - could be system time, fixed time, or adjusted time
@@ -158,12 +134,198 @@ function updateCurrentTime() {
 function updateAllTimeDisplays() {
   // Update Zulu time
   updateZuluTimeDisplay();
-  
+
   // Update local time
   updateLocalTimeDisplay();
-  
+
   // Update terminator and sun position
   updateTerminatorAndSun();
+
+  // Update any toggled-on per-timezone clocks attached to hour triangles
+  updateToggledTimezoneDisplays();
+}
+
+// Format the given UTC Date as HH:MM (no padding on hours, to match local-time)
+// at a fixed hour offset from UTC. Whole-hour offsets only — half-hour zones
+// (e.g. India +5:30) are handled separately by their own row in TeeZee.
+function formatTimeAtOffset(date, hourOffset) {
+  const shifted = new Date(date.getTime() + hourOffset * 3600 * 1000);
+  const h = shifted.getUTCHours();
+  const m = shifted.getUTCMinutes();
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+// Walk every outboard time label (including .tz-local) and refresh its text.
+// The local label uses the precise userTimezoneOffsetHours (which may be
+// fractional, e.g. India +5:30); other labels use their integer data offset.
+function updateToggledTimezoneDisplays() {
+  document.querySelectorAll('.tz-outboard-time[data-hour-offset]').forEach(el => {
+    const isLocal = el.classList.contains('tz-local');
+    const offset = isLocal && userTimezoneOffsetHours !== null
+      ? userTimezoneOffsetHours
+      : parseFloat(el.dataset.hourOffset);
+    el.textContent = `${formatTimeAtOffset(currentTime, offset)} ${TeeZee.getAbbreviation(offset)}`;
+  });
+}
+
+// Write/remove ?as-of= on the URL. The format is YYYY-MM-DDThh:mm:ss + a
+// suffix: NATO single-letter zone code if the page is using ?local=<NATO>,
+// otherwise Z (UTC). Existing query params are preserved. Both functions also
+// show/hide the "Fixed time: ..." banner so the on-screen state and URL stay
+// in sync regardless of how pin/unpin is triggered.
+function setAsOfUrlParam(date) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const localParam = urlParams.get('local');
+  const useNatoCode = localParam && localParam.length === 1 && /^[A-IK-Z]$/i.test(localParam);
+  const suffix = useNatoCode ? localParam.toUpperCase() : 'Z';
+  const pad = n => String(n).padStart(2, '0');
+  const formatted =
+    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}` +
+    `T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}` +
+    suffix;
+  urlParams.delete('as-of');
+  // Build manually so the colons in as-of aren't percent-encoded
+  let newUrl = window.location.pathname;
+  newUrl += urlParams.toString()
+    ? '?' + urlParams.toString() + '&as-of=' + formatted
+    : '?as-of=' + formatted;
+  window.history.pushState({ path: newUrl }, '', newUrl);
+  showFixedTimeIndicator(formatted);
+}
+
+function clearAsOfUrlParam() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('as-of')) {
+    urlParams.delete('as-of');
+    const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+    window.history.pushState({ path: newUrl }, '', newUrl);
+  }
+  removeFixedTimeIndicator();
+}
+
+function showFixedTimeIndicator(displayText) {
+  const container = document.querySelector('.container');
+  let el = container.querySelector('.fixed-time-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'fixed-time-indicator';
+    Object.assign(el.style, {
+      position: 'absolute',
+      top: '10px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: '12px',
+      color: '#FF9090',
+      textAlign: 'center',
+      fontWeight: 'bold',
+      zIndex: '100'
+    });
+    container.appendChild(el);
+  }
+  el.textContent = `Fixed time: ${displayText}`;
+}
+
+function removeFixedTimeIndicator() {
+  document.querySelector('.fixed-time-indicator')?.remove();
+}
+
+// Map a 0-23 hour-mark index to its UTC hour offset.
+// Top of clock (0) is GMT+0; clockwise 1-12 → -1..-12; 13-23 → +11..+1.
+function hourIndexToOffset(hourIndex) {
+  if (hourIndex === 0) return 0;
+  if (hourIndex <= 12) return -hourIndex;
+  return 24 - hourIndex;
+}
+
+// Inverse of hourIndexToOffset. Fractional offsets (half-hour zones) are
+// rounded to the nearest whole hour for hour-mark association only — the
+// label's displayed time still uses the precise offset.
+function offsetToHourIndex(offset) {
+  const o = Math.round(offset);
+  if (o === 0) return 0;
+  if (o < 0) return -o;
+  if (o === 12) return 12;
+  return 24 - o;
+}
+
+// Outboard time label — sits beyond the clock rim at the angular position
+// for this offset. If the offset matches the user's local timezone, the
+// element is also marked .tz-local and made draggable.
+function addOutboardTimeLabel(offset) {
+  const isLocal = userTimezoneOffsetHours !== null
+    && Math.round(userTimezoneOffsetHours) === offset;
+  const displayOffset = isLocal ? userTimezoneOffsetHours : offset;
+
+  const clockElement = document.getElementById('clock');
+  const radius = clockElement.offsetWidth / 2;
+  const angleDegrees = TeeZee.getClockPositionAngle(displayOffset);
+  const radians = angleDegrees * (Math.PI / 180);
+  const x = Math.cos(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius;
+  const y = Math.sin(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius;
+
+  const el = document.createElement('div');
+  el.className = 'tz-outboard-time' + (isLocal ? ' tz-local' : '');
+  el.dataset.hourOffset = offset;
+  if (isLocal) {
+    el.title = 'Drag to adjust timezone';
+    attachLocalDragMousedown(el);
+  }
+  el.textContent = `${formatTimeAtOffset(currentTime, displayOffset)} ${TeeZee.getAbbreviation(displayOffset)}`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  clockElement.appendChild(el);
+}
+
+// Inboard city label — extracted verbatim from the original click handler so
+// existing rotation/positioning math is preserved.
+function addInboardCityLabel(hourIndex, offset) {
+  const place = TeeZee.getPlaceName(offset);
+  const isLeftSide = hourIndex >= 12 && hourIndex <= 23;
+
+  const placeNameEl = document.createElement('div');
+  placeNameEl.className = 'place-name';
+  placeNameEl.dataset.hourIndex = hourIndex;
+  placeNameEl.dataset.hourOffset = offset;
+  placeNameEl.textContent = place;
+  if (isLeftSide) {
+    placeNameEl.dataset.leftSide = 'true';
+  }
+
+  const angleDegrees = hourIndex * 15;
+  const angleRadians = angleDegrees * (Math.PI / 180);
+  const clockElement = document.getElementById('clock');
+  const clockRadius = clockElement.offsetWidth / 2;
+
+  Object.assign(placeNameEl.style, {
+    position: 'absolute',
+    transformOrigin: 'center',
+    color: '#90EE90',
+    fontSize: '12px',
+    whiteSpace: 'nowrap',
+    textShadow: '0 0 3px #000, 0 0 5px #000',
+    padding: '3px 6px',
+    backgroundColor: 'rgba(0, 0, 30, 0.6)',
+    borderRadius: '4px',
+    userSelect: 'none',
+    visibility: 'hidden'
+  });
+  clockElement.appendChild(placeNameEl);
+
+  const textWidth = placeNameEl.offsetWidth;
+  const targetDistance = clockRadius * 0.81;
+  const adjustedDistance = targetDistance - textWidth / 2;
+  const offsetX = Math.sin(angleRadians) * adjustedDistance;
+  const offsetY = -Math.cos(angleRadians) * adjustedDistance;
+
+  placeNameEl.style.left = `calc(50% + ${offsetX}px)`;
+  placeNameEl.style.top = `calc(50% + ${offsetY}px)`;
+  const flip = isLeftSide ? 180 : 0;
+  placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270 + flip}deg)`;
+  placeNameEl.style.visibility = 'visible';
+  placeNameEl.style.zIndex = '100';
+  placeNameEl.style.cursor = 'pointer';
+
+  placeNameEl.addEventListener('click', e => e.stopPropagation());
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -177,27 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Process timezone parameter first
   if (overrideTimezone) {
-    // Process timezone parameter - this function will set customTimezoneOffset
     overrideTimezone = processTimezoneParameter(overrideTimezone);
-    
-    // Update the page title to reflect the custom timezone
     document.title = `GoZulu - ${overrideTimezone} Time`;
-    
-    // Add a visual indicator that we're using a custom timezone
-    const container = document.querySelector('.container');
-    const timezoneIndicator = document.createElement('div');
-    timezoneIndicator.className = 'timezone-indicator';
-    timezoneIndicator.textContent = `Using ${overrideTimezone} timezone`;
-    timezoneIndicator.style.position = 'absolute';
-    timezoneIndicator.style.top = asOfParam ? '30px' : '10px'; // Position below fixed time if it exists
-    timezoneIndicator.style.left = '50%';
-    timezoneIndicator.style.transform = 'translateX(-50%)';
-    timezoneIndicator.style.fontSize = '12px';
-    timezoneIndicator.style.color = '#90EE90';
-    timezoneIndicator.style.textAlign = 'center';
-    timezoneIndicator.style.fontWeight = 'bold';
-    timezoneIndicator.style.zIndex = '100';
-    container.appendChild(timezoneIndicator);
   } else {
     // Use system timezone if no override
     userTimezoneOffsetHours = -systemTime.getTimezoneOffset() / 60;
@@ -209,35 +352,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fixedTime) {
       useFixedTime = true;
       
-      // Format the display time keeping seconds but removing milliseconds
+      // Strip milliseconds from the URL value for display, but preserve the
+      // timezone suffix.
       let displayAsOf = asOfParam;
-      
-      // If it's a full ISO string, strip the milliseconds but keep seconds
       if (asOfParam.includes('.')) {
-        // Remove the millisecond part
         const parts = asOfParam.split('.');
         if (parts.length === 2) {
-          // Keep everything before the decimal point
           const timezonePart = parts[1].match(/[Z]|[+-]\d\d:\d\d/);
           displayAsOf = parts[0] + (timezonePart ? timezonePart[0] : '');
         }
       }
-      
-      // Add visual indicator for fixed time
-      const container = document.querySelector('.container');
-      const fixedTimeIndicator = document.createElement('div');
-      fixedTimeIndicator.className = 'fixed-time-indicator';
-      fixedTimeIndicator.textContent = `Fixed time: ${displayAsOf}`;
-      fixedTimeIndicator.style.position = 'absolute';
-      fixedTimeIndicator.style.top = '10px';
-      fixedTimeIndicator.style.left = '50%';
-      fixedTimeIndicator.style.transform = 'translateX(-50%)';
-      fixedTimeIndicator.style.fontSize = '12px';
-      fixedTimeIndicator.style.color = '#FF9090';
-      fixedTimeIndicator.style.textAlign = 'center';
-      fixedTimeIndicator.style.fontWeight = 'bold';
-      fixedTimeIndicator.style.zIndex = '100';
-      container.appendChild(fixedTimeIndicator);
+      showFixedTimeIndicator(displayAsOf);
     } else {
       console.error('Invalid as-of date format:', asOfParam);
     }
@@ -252,28 +377,42 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize the clock
   updateClock();
   
-  // Update every second - only if not using fixed time
-  if (!useFixedTime) {
-    setInterval(() => {
-      systemTime = new Date(); // Update system time
-      updateCurrentTime();     // Update current time
-      updateClock();           // Update the clock display
-    }, 1000);
+  // Run the ticker unconditionally. When useFixedTime is true (page is pinned)
+  // or userAdjustedTime is set (mid-drag), updateCurrentTime() honors those
+  // and the displayed time stays put. The ticker keeps systemTime current so
+  // an unpin gesture can spring back to "now".
+  setInterval(() => {
+    systemTime = new Date();
+    updateCurrentTime();
+    updateClock();
+  }, 1000);
+
+  // Wire global drag handlers for the (yet-to-be-created) .tz-local label
+  setupGlobalLocalDragHandlers();
+
+  // Initialize the user's local timezone display: default state is TIME-ONLY.
+  // Click on the corresponding hour-mark cycles through off → time → time-city.
+  if (userTimezoneOffsetHours !== null) {
+    const idx = offsetToHourIndex(userTimezoneOffsetHours);
+    const marks = document.querySelectorAll('.hour-mark');
+    if (marks[idx]) {
+      marks[idx].dataset.displayState = 'time';
+      addOutboardTimeLabel(Math.round(userTimezoneOffsetHours));
+    }
   }
 
-  // Position local time based on timezone
-  positionLocalTimeByTimezone();
-  
   // Setup draggable sun
   setupDraggableSun();
-  
-  // Setup draggable local time label
-  setupDraggableLocalTime();
-  
+
+  // Reflect the pinned state visually if we loaded with ?as-of=
+  if (useFixedTime) {
+    document.getElementById('sun-position').classList.add('pinned');
+  }
+
   // Handle window resize
   window.addEventListener('resize', adjustClockSize);
   adjustClockSize();
-  
+
   // Initial update of all time displays
   updateAllTimeDisplays();
 });
@@ -332,133 +471,27 @@ function createHourMarks() {
     const timezoneName = `${abbr} - ${hourOffset >= 0 ? '+' : ''}${hourOffset} (${natoCode}) - ${placeName}`;
     hourMark.title = timezoneName;
     
-    // Add click event to toggle the place name when clicking on an hour mark
+    // Tri-state click cycle: off → time → time-city → off
     hourMark.addEventListener('click', function(e) {
-      // Get the index of this hour mark which corresponds directly to the hour (0-23)
       const hourIndex = parseInt(this.dataset.index);
-      
-      // Calculate the timezone offset correctly based on hour index
-      // On a 24-hour clock with opposite direction:
-      // Hour 0 (top) is GMT+0
-      // Clockwise: Hours 1-12 are GMT-1 to GMT-12
-      // Hours 13-23 are GMT+11 to GMT+1
-      let offset;
-      if (hourIndex === 0) {
-        // Top of clock is GMT+0
-        offset = 0;
-      } else if (hourIndex <= 12) {
-        // First half of the clock (clockwise from top to bottom) is GMT-1 to GMT-12
-        offset = -hourIndex;
-      } else {
-        // Second half of the clock (clockwise from bottom to top) is GMT+11 to GMT+1
-        offset = 24 - hourIndex;
+      const offset = hourIndexToOffset(hourIndex);
+
+      const states = ['off', 'time', 'time-city'];
+      const current = this.dataset.displayState || 'off';
+      const next = states[(states.indexOf(current) + 1) % states.length];
+      this.dataset.displayState = next;
+
+      // Tear down any existing labels for this offset before re-rendering
+      document.querySelectorAll(`.tz-outboard-time[data-hour-offset="${offset}"]`).forEach(el => el.remove());
+      document.querySelectorAll(`.place-name[data-hour-offset="${offset}"]`).forEach(el => el.remove());
+
+      if (next === 'time' || next === 'time-city') {
+        addOutboardTimeLabel(offset);
       }
-      
-      // Get the correct timezone information based on the offset
-      const place = TeeZee.getPlaceName(offset);
-      const abbr = TeeZee.getAbbreviation(offset);
-      const natoCode = TeeZee.getNatoCode(offset);
-      
-      // Get the hour marker's index to use as an identifier
-      const hourMarkerIndex = hourIndex;
-      
-      // Check if a place name already exists for this hour marker
-      const existingPlaceName = document.querySelector(`.place-name[data-hour-index="${hourMarkerIndex}"]`);
-      
-      // Toggle place name display
-      if (existingPlaceName) {
-        // If place name is already shown, remove it
-        existingPlaceName.remove();
-      } else {
-        // Create place name label
-        const placeNameEl = document.createElement('div');
-        placeNameEl.className = 'place-name';
-        // Add data attribute to identify which hour marker this place name belongs to
-        placeNameEl.dataset.hourIndex = hourMarkerIndex;
-        
-        // Format text differently based on side of clock
-        // For the left side (GMT+1 to GMT+12), use "(TZ) place name" format and flip text
-        const isLeftSide = hourIndex >= 12 && hourIndex <= 23;
-        if (isLeftSide) {
-          placeNameEl.textContent = `(${abbr}) ${place}`;
-          placeNameEl.dataset.leftSide = "true";
-        } else {
-          placeNameEl.textContent = `${place} (${abbr})`;
-        }
-        
-        // Use the hour index directly for positioning
-        // Calculate the proper angle in degrees (0 at top, clockwise)
-        const angleDegrees = hourIndex * 15;
-        // Convert to radians for positioning calculations
-        const angleRadians = angleDegrees * (Math.PI / 180);
-        
-        // No longer need debug output
-        
-        // First create and style the element
-        const clockElement = document.getElementById('clock');
-        const clockRadius = clockElement.offsetWidth / 2;
-        
-        // Style the place name element
-        placeNameEl.style.position = 'absolute';
-        placeNameEl.style.transformOrigin = 'center';
-        placeNameEl.style.color = '#90EE90';
-        placeNameEl.style.fontSize = '12px';
-        placeNameEl.style.whiteSpace = 'nowrap';
-        placeNameEl.style.textShadow = '0 0 3px #000, 0 0 5px #000';
-        placeNameEl.style.padding = '3px 6px';
-        placeNameEl.style.backgroundColor = 'rgba(0, 0, 30, 0.6)';
-        placeNameEl.style.borderRadius = '4px';
-        placeNameEl.style.userSelect = 'none';
-        
-        // Add it to the DOM temporarily to get its width
-        placeNameEl.style.visibility = 'hidden'; // Hide it initially
-        clockElement.appendChild(placeNameEl);
-        
-        // Get the width of the text element
-        const textWidth = placeNameEl.offsetWidth;
-        
-        // Calculate the target point at 81% of radius
-        const targetDistance = clockRadius * 0.81;
-        
-        // Adjust the position so the END of the text (not the center) is at the target point
-        // The adjustment depends on the angle
-        let adjustedDistance;
-        
-        // Calculate the distance to position the CENTER of the text
-        // We need to subtract half the text width from the target position
-        // But we need to account for the angle too
-        const textWidthAlongRay = textWidth / 2;
-        adjustedDistance = targetDistance - textWidthAlongRay;
-        
-        // Use the adjusted distance for positioning
-        const offsetX = Math.sin(angleRadians) * adjustedDistance;
-        const offsetY = -Math.cos(angleRadians) * adjustedDistance;
-        
-        // Update the position
-        placeNameEl.style.left = `calc(50% + ${offsetX}px)`;
-        placeNameEl.style.top = `calc(50% + ${offsetY}px)`;
-        // Rotate differently based on which side of the clock the marker is on
-        if (isLeftSide) {
-          // For left side (GMT+1 to GMT+12), rotate an additional 180° to make text right-side up
-          placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270 + 180}deg)`;
-        } else {
-          // For right side (GMT-1 to GMT-12), use the original rotation
-          placeNameEl.style.transform = `translate(-50%, -50%) rotate(${angleDegrees + 270}deg)`;
-        }
-        placeNameEl.style.visibility = 'visible'; // Make it visible again
-        placeNameEl.style.zIndex = '100';
-        placeNameEl.style.cursor = 'pointer';
-        
-        // Add the place name element to the hour mark
-        clockElement.appendChild(placeNameEl);
-        
-        // Prevent clicks on the place name from doing anything except stopping propagation
-        placeNameEl.addEventListener('click', function(e) {
-          e.stopPropagation(); // Just prevent the click from reaching the clock
-        });
+      if (next === 'time-city') {
+        addInboardCityLabel(hourIndex, offset);
       }
-      
-      // Prevent the event from propagating to the clock
+
       e.stopPropagation();
     });
     
@@ -523,43 +556,11 @@ function updateZuluTimeDisplay() {
   document.getElementById('zulu-time').textContent = `${zuluHours}:${zuluMinutes}:${zuluSeconds}Z`;
 }
 
-// Function to update the local time display based on custom or system timezone
+// The local timezone label is now part of the unified .tz-outboard-time set;
+// updateToggledTimezoneDisplays() handles refreshing its text. This stub is
+// kept because drag/title-update sites still call it.
 function updateLocalTimeDisplay() {
-  // Get UTC time
-  const utcHours = currentTime.getUTCHours();
-  const utcMinutes = currentTime.getUTCMinutes();
-  
-  // Calculate local time by applying the timezone offset
-  // userTimezoneOffsetHours is already in the correct format for direct arithmetic
-  // For custom timezones: derived in processTimezoneParameter as -customTimezoneOffset / 60
-  // For system timezones: derived as -systemTime.getTimezoneOffset() / 60
-  
-  // Apply the offset to get local hours, ensuring it wraps properly around 24
-  const offsetHoursWhole = Math.floor(userTimezoneOffsetHours);
-  const localHours = (utcHours + offsetHoursWhole + 24) % 24;
-  
-  // Handle fractional hour offsets (like India at UTC+5:30)
-  const offsetMinutes = Math.round((userTimezoneOffsetHours % 1) * 60);
-  const calculatedLocalMinutes = (utcMinutes + offsetMinutes + 60) % 60;
-  
-  // Format the time values as strings for display
-  const formattedLocalHours = String(localHours); //.padStart(2, '0');
-  const formattedLocalMinutes = String(calculatedLocalMinutes).padStart(2, '0');
-  
-  // Get timezone abbreviation directly from TeeZee - prioritizes abbreviation for display
-  const timeZoneAbbr = TeeZee.getFormattedTimezoneDisplay(userTimezoneOffsetHours);
-  
-  // Get or create the local time element
-  let localTimeElement = document.getElementById('local-time');
-  if (!localTimeElement) {
-    localTimeElement = document.createElement('div');
-    localTimeElement.id = 'local-time';
-    localTimeElement.className = 'time-display';
-    document.getElementById('clock').appendChild(localTimeElement);
-  }
-  
-  // Update the display with the new format
-  localTimeElement.textContent = `${formattedLocalHours}:${formattedLocalMinutes} ${timeZoneAbbr}`;
+  updateToggledTimezoneDisplays();
 }
 
 // Function to get timezone display text
@@ -756,90 +757,99 @@ function getTimeZoneAbbreviation() {
   return timeZoneAbbr;
 }
 
+// If the user holds the sun still for at least this long before releasing,
+// the release is interpreted as PIN (commit ?as-of=). Anything quicker means
+// "let go" → spring back to realtime.
+const PIN_DWELL_MS = 200;
+// Outboard time labels sit at this multiple of the clock radius from clock
+// center. 1.20 places GMT (top) between the page title and the big Zulu time.
+const OUTBOARD_DISTANCE_FACTOR = 1.25;
+
 function setupDraggableSun() {
   const sunElement = document.getElementById('sun-position');
   const clockElement = document.getElementById('clock');
-  
+
   let isDragging = false;
-  let startAngle;
-  let currentRealTime;
-  
+  let lastMoveTime = 0;
+  let pinningTimer = null;
+
   // Mouse/Touch down event
   sunElement.addEventListener('mousedown', startDrag);
   sunElement.addEventListener('touchstart', startDrag);
-  
+
   // Mouse/Touch move events
   document.addEventListener('mousemove', drag);
   document.addEventListener('touchmove', drag);
-  
+
   // Mouse/Touch up events
   document.addEventListener('mouseup', endDrag);
   document.addEventListener('touchend', endDrag);
-  
-function startDrag(e) {
+
+  function schedulePinningHint() {
+    if (pinningTimer) clearTimeout(pinningTimer);
+    pinningTimer = setTimeout(() => {
+      sunElement.classList.add('pinning');
+    }, PIN_DWELL_MS);
+  }
+
+  function clearPinningHint() {
+    if (pinningTimer) {
+      clearTimeout(pinningTimer);
+      pinningTimer = null;
+    }
+    sunElement.classList.remove('pinning');
+  }
+
+  function startDrag(e) {
     e.preventDefault();
     isDragging = true;
-    
-    // Store the starting state - needed for calculations during drag
-    // userAdjustedTime is a copy of currentTime when drag starts
+    lastMoveTime = Date.now();
+
+    // Store the starting state - userAdjustedTime is a copy of currentTime when drag starts
     userAdjustedTime = new Date(currentTime);
-    
-    const clockRect = clockElement.getBoundingClientRect();
-    const clockCenterX = clockRect.left + clockRect.width / 2;
-    const clockCenterY = clockRect.top + clockRect.height / 2;
-    
-    // Get current position
-    const x = e.clientX || e.touches[0].clientX;
-    const y = e.clientY || e.touches[0].clientY;
-    
-    // Calculate starting angle
-    startAngle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
-    
-    // Add "dragging" class to the sun
+
     sunElement.classList.add('dragging');
-}
+    schedulePinningHint();
+  }
   
-function drag(e) {
+  function drag(e) {
     if (!isDragging) return;
     e.preventDefault();
-    
+
     const clockRect = clockElement.getBoundingClientRect();
-    const clockRadius = clockRect.width / 2;
     const clockCenterX = clockRect.left + clockRect.width / 2;
     const clockCenterY = clockRect.top + clockRect.height / 2;
-    
-    // Get current position
+
     const x = e.clientX || e.touches[0].clientX;
     const y = e.clientY || e.touches[0].clientY;
-    
-    // Calculate new angle
+
+    // Calculate new angle (clockwise from top, 0..360)
     let angle = 180 + (Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI));
-    
-    // Convert angle to hours
-    // Angle increases clockwise from right (3 o'clock position)
-    // Convert to hours format where 0 is at top (12 o'clock position)
+
+    // Convert angle to hours (0 at top = 12 o'clock = midnight UTC)
     let hours = ((angle + 90) / 15) % 24;
     if (hours < 0) hours += 24;
-    
-    // Snap to 15-minute intervals (0, 15, 30, 45 minutes)
+
+    // Snap to 15-minute intervals
     const hoursPart = Math.floor(hours);
-    let minutesPart = Math.round((hours - hoursPart) * 4) / 4; // Snap to quarters
+    let minutesPart = Math.round((hours - hoursPart) * 4) / 4;
     if (minutesPart === 1) {
       minutesPart = 0;
-      hours = (hoursPart + 1) % 24; // Ensure we wrap around at 24
+      hours = (hoursPart + 1) % 24;
     } else {
       hours = hoursPart + minutesPart;
     }
-    
-    // Start with base time (either fixed or current)
-    const baseTime = new Date(userAdjustedTime);
-    
-    // Set the new UTC time based on the dragged position
+
     userAdjustedTime.setUTCHours(hours);
     userAdjustedTime.setUTCMinutes(minutesPart * 60);
     userAdjustedTime.setUTCSeconds(0);
-    
-    // Update the display
+
+    // Track the last movement so endDrag can measure dwell. Reset the pinning
+    // hint each time the user moves so it only fires after a real pause.
+    lastMoveTime = Date.now();
+    sunElement.classList.remove('pinning');
+    schedulePinningHint();
+
     updateCurrentTime();
     updateAllTimeDisplays();
   }
@@ -847,256 +857,179 @@ function drag(e) {
   function endDrag() {
     if (!isDragging) return;
     isDragging = false;
-    
-    // Remove dragging class
+
     sunElement.classList.remove('dragging');
-    
-    if (useFixedTime) {
-      // In fixed time mode, update the URL with new as-of parameter
-      let formattedTime;
-      
-      // Check if we're using a non-UTC timezone from the 'local' parameter
-      const urlParams = new URLSearchParams(window.location.search);
-      const localParam = urlParams.get('local');
-      let useNatoCode = false;
-      let natoCode = '';
-      
-      if (localParam && localParam.length === 1 && /^[A-IK-Z]$/i.test(localParam)) {
-        // Using a NATO one-letter code
-        natoCode = localParam.toUpperCase();
-        useNatoCode = true;
-      }
-      
-      if (useNatoCode && natoCode) {
-        // Format with NATO code
-        const year = userAdjustedTime.getUTCFullYear();
-        const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
-        const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
-        const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
-        
-        // Format as YYYY-MM-DDThh:mm:ss with NATO code
-        formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${natoCode}`;
-      } else {
-        // Format with UTC (Z)
-        const year = userAdjustedTime.getUTCFullYear();
-        const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
-        const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
-        const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
-        
-        // Format as YYYY-MM-DDThh:mm:ssZ
-        formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
-      }
-      
-      // Create URL manually to avoid encoding colons
-      urlParams.delete('as-of'); // Remove existing as-of parameter
-      
-      let newUrl = window.location.pathname;
-      if (urlParams.toString()) {
-        newUrl += '?' + urlParams.toString() + '&as-of=' + formattedTime;
-      } else {
-        newUrl += '?as-of=' + formattedTime;
-      }
-      
-      window.history.pushState({ path: newUrl }, '', newUrl);
-      
-      // Update the fixed time
+    clearPinningHint();
+
+    // Dwell = how long since the user's last drag movement. If they paused
+    // ≥ PIN_DWELL_MS before releasing, the gesture is "pin"; otherwise "let go".
+    const dwell = Date.now() - lastMoveTime;
+    const shouldPin = dwell >= PIN_DWELL_MS;
+
+    if (shouldPin && userAdjustedTime) {
+      // PIN: commit the dragged time as fixed, write ?as-of=, no spring-back.
       fixedTime = new Date(userAdjustedTime);
-      
-      // Continue using the adjusted time (no spring back)
+      useFixedTime = true;
+      setAsOfUrlParam(userAdjustedTime);
+      sunElement.classList.add('pinned');
       isAnimatingSpringBack = false;
-    } else {
-      // In normal mode, create spring-back animation
-      isAnimatingSpringBack = true;
-      
-      // Get current position and real time position
-      const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
-      const realTerminatorAngle = (systemTime.getUTCHours() + (systemTime.getUTCMinutes() / 60)) * 15 + 180;
-      
-      // Calculate difference
-      let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
-      // Ensure we go the shortest distance (handling the day boundary)
-      if (angleDiff > 180) angleDiff -= 360;
-      if (angleDiff < -180) angleDiff += 360;
-      
-      // Animation variables
-      const startTime = Date.now();
-      const duration = 800; // milliseconds
-      const startAngle = adjustedTerminatorAngle;
-      
-      // Spring animation effect using elastic easing
-      function elasticOut(t) {
-        return Math.sin(-13 * Math.PI/2 * (t + 1)) * Math.pow(2, -10 * t) + 1;
-      }
-      
-      function animateSpringBack() {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        if (progress < 1) {
-          // Calculate current angle using elastic easing
-          const currentAngle = startAngle + (angleDiff * elasticOut(progress));
-          
-          // Update position
-          const clockElement = document.getElementById('clock');
-          const radius = clockElement.offsetWidth / 2;
-          const sunElement = document.getElementById('sun-position');
-          
-          const sunAngle = (currentAngle - 90) * (Math.PI / 180);
-          const sunRadius = radius * sunScale;
-          const x = Math.cos(sunAngle) * sunRadius + radius;
-          const y = Math.sin(sunAngle) * sunRadius + radius;
-          
-          sunElement.style.left = `${x}px`;
-          sunElement.style.top = `${y}px`;
-          
-          // Also rotate the terminator
-          document.getElementById('terminator').style.transform = `rotate(${currentAngle}deg)`;
-          
-          // Continue animation
-          springBackAnimation = requestAnimationFrame(animateSpringBack);
-        } else {
-          // Animation complete
-          springBackAnimation = null;
-          isAnimatingSpringBack = false;
-          userAdjustedTime = null;
-          
-          // Update the time to system time
-          updateCurrentTime();
-          updateAllTimeDisplays();
-        }
-      }
-      
-      // Start the spring back animation
-      if (springBackAnimation) {
-        cancelAnimationFrame(springBackAnimation);
-      }
-      springBackAnimation = requestAnimationFrame(animateSpringBack);
+      // Clear userAdjustedTime so subsequent ticks resolve through fixedTime.
+      userAdjustedTime = null;
+      updateCurrentTime();
+      updateAllTimeDisplays();
+      return;
     }
+
+    // Quick release: if the page was previously pinned, this is the unpin
+    // gesture. Either way, spring back to system time.
+    if (useFixedTime) {
+      useFixedTime = false;
+      fixedTime = null;
+      clearAsOfUrlParam();
+      sunElement.classList.remove('pinned');
+    }
+
+    isAnimatingSpringBack = true;
+
+    // Spring the terminator/sun from the dragged angle back to the systemTime angle
+    const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
+    const realTerminatorAngle = (systemTime.getUTCHours() + (systemTime.getUTCMinutes() / 60)) * 15 + 180;
+
+    let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
+    if (angleDiff > 180) angleDiff -= 360;
+    if (angleDiff < -180) angleDiff += 360;
+
+    const startTime = Date.now();
+    const duration = 800;
+    const startAngle = adjustedTerminatorAngle;
+
+    function elasticOut(t) {
+      return Math.sin(-13 * Math.PI / 2 * (t + 1)) * Math.pow(2, -10 * t) + 1;
+    }
+
+    function animateSpringBack() {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      if (progress < 1) {
+        const currentAngle = startAngle + (angleDiff * elasticOut(progress));
+        const radius = clockElement.offsetWidth / 2;
+        const sunAngle = (currentAngle - 90) * (Math.PI / 180);
+        const sunRadius = radius * sunScale;
+        sunElement.style.left = `${Math.cos(sunAngle) * sunRadius + radius}px`;
+        sunElement.style.top = `${Math.sin(sunAngle) * sunRadius + radius}px`;
+        document.getElementById('terminator').style.transform = `rotate(${currentAngle}deg)`;
+        springBackAnimation = requestAnimationFrame(animateSpringBack);
+      } else {
+        springBackAnimation = null;
+        isAnimatingSpringBack = false;
+        userAdjustedTime = null;
+        updateCurrentTime();
+        updateAllTimeDisplays();
+      }
+    }
+
+    if (springBackAnimation) cancelAnimationFrame(springBackAnimation);
+    springBackAnimation = requestAnimationFrame(animateSpringBack);
   }
 }
 
-function setupDraggableLocalTime() {
-  const localTimeElement = document.getElementById('local-time');
+// Drag state for the .tz-local label.
+let isDraggingLocal = false;
+let dragStartHourIndex = null;
+
+// Wire global mouse/touch listeners once. The mousedown listener is attached
+// per-element by attachLocalDragMousedown(), which is called every time a
+// .tz-local element is created.
+function setupGlobalLocalDragHandlers() {
+  document.addEventListener('mousemove', dragLocal);
+  document.addEventListener('touchmove', dragLocal);
+  document.addEventListener('mouseup', endDragLocal);
+  document.addEventListener('touchend', endDragLocal);
+}
+
+function attachLocalDragMousedown(el) {
+  el.addEventListener('mousedown', startDragLocal);
+  el.addEventListener('touchstart', startDragLocal);
+}
+
+function startDragLocal(e) {
+  e.preventDefault();
+  const el = document.querySelector('.tz-local');
+  if (!el) return;
+  isDraggingLocal = true;
+  dragStartHourIndex = offsetToHourIndex(parseFloat(el.dataset.hourOffset));
+  el.classList.add('dragging');
+}
+
+function dragLocal(e) {
+  if (!isDraggingLocal) return;
+  e.preventDefault();
+
   const clockElement = document.getElementById('clock');
-  
-  if (!localTimeElement) return;
-  
-  // Add a visual cue that the time is draggable
-  localTimeElement.style.cursor = 'grab';
-  localTimeElement.title = 'Drag to adjust timezone';
-  
-  let isDragging = false;
-  let startX, startY;
-  
-  // Mouse/Touch down event
-  localTimeElement.addEventListener('mousedown', startDrag);
-  localTimeElement.addEventListener('touchstart', startDrag);
-  
-  // Mouse/Touch move events
-  document.addEventListener('mousemove', drag);
-  document.addEventListener('touchmove', drag);
-  
-  // Mouse/Touch up events
-  document.addEventListener('mouseup', endDrag);
-  document.addEventListener('touchend', endDrag);
-  
-  function startDrag(e) {
-    e.preventDefault();
-    isDragging = true;
-    
-    // Add a dragging class
-    localTimeElement.classList.add('dragging');
-    localTimeElement.style.cursor = 'grabbing';
-    
-    // Get initial position
-    startX = e.clientX || e.touches[0].clientX;
-    startY = e.clientY || e.touches[0].clientY;
-  }
-  
-  function drag(e) {
-    if (!isDragging) return;
-    e.preventDefault();
-    
-    const clockRect = clockElement.getBoundingClientRect();
-    const clockCenterX = clockRect.left + clockRect.width / 2;
-    const clockCenterY = clockRect.top + clockRect.height / 2;
-    
-    // Get cursor position
-    const x = e.clientX || e.touches[0].clientX;
-    const y = e.clientY || e.touches[0].clientY;
-    
-    // Calculate angle relative to clock center
-    const dx = x - clockCenterX;
-    const dy = y - clockCenterY;
-    
-    // Get the angle from the mouse position in degrees (0-360)
-    const radians = Math.atan2(dy, dx);
-    let angleDegrees = radians * (180 / Math.PI);
-    if (angleDegrees < 0) angleDegrees += 360;
-    
-    // Use TeeZee to calculate the timezone offset from the angle
-    const hourOffset = TeeZee.getOffsetFromClockPosition(angleDegrees);
-    
-    // Round to nearest whole hour (no fractional hours)
-    const roundedOffset = Math.round(hourOffset);
-    
-    // Update display
-    userTimezoneOffsetHours = roundedOffset;
-    
-    // Update position
-    positionLocalTimeByTimezone();
-    
-    // Update time display with new offset
-    updateLocalTimeDisplay();
-    
-    // Update the timezone indicator during drag
-    updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
-  }
-  
-  function endDrag() {
-    if (!isDragging) return;
-    isDragging = false;
-    
-    // Remove dragging class
-    localTimeElement.classList.remove('dragging');
-    localTimeElement.style.cursor = 'grab';
-    
-    // Update URL with new timezone
-    updateTimezoneQueryString(userTimezoneOffsetHours);
-    updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
-  }
-  
-  // Helper function to update only the timezone indicator without changing URL
-  function updateTimezoneIndicatorOnly(offsetHours) {
-    // Get formatted timezone info using TeeZee
-    const abbr = TeeZee.getAbbreviation(offsetHours);
-    const natoCode = TeeZee.getNatoCode(offsetHours);
-    const place = TeeZee.getPlaceName(offsetHours);
-    
-    // Create a display string that prioritizes the abbreviation
-    let displayTimezone;
-    
-    if (abbr && abbr) {
-      // Always prefer the abbreviation during dragging
-      displayTimezone = `${abbr} (${natoCode} NATO)`;
+  const clockRect = clockElement.getBoundingClientRect();
+  const cx = clockRect.left + clockRect.width / 2;
+  const cy = clockRect.top + clockRect.height / 2;
+  const x = e.clientX !== undefined ? e.clientX : e.touches[0].clientX;
+  const y = e.clientY !== undefined ? e.clientY : e.touches[0].clientY;
+
+  let angleDegrees = Math.atan2(y - cy, x - cx) * (180 / Math.PI);
+  if (angleDegrees < 0) angleDegrees += 360;
+
+  const newOffset = Math.round(TeeZee.getOffsetFromClockPosition(angleDegrees));
+  if (newOffset !== userTimezoneOffsetHours) {
+    userTimezoneOffsetHours = newOffset;
+
+    // Move the .tz-local element to the new angle. We don't tear down/rebuild
+    // mid-drag — that would unbind the in-flight mousedown.
+    const el = document.querySelector('.tz-local');
+    if (el) {
+      const radius = clockElement.offsetWidth / 2;
+      const a = TeeZee.getClockPositionAngle(newOffset) * (Math.PI / 180);
+      el.style.left = `${Math.cos(a) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
+      el.style.top = `${Math.sin(a) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
+      el.dataset.hourOffset = newOffset;
     }
-    
-    // Update page title
-    document.title = `GoZulu - ${displayTimezone}`;
-    
-    // Update timezone indicator if it exists
-    const indicator = document.querySelector('.timezone-indicator');
-    if (indicator) {
-      indicator.textContent = `Using ${displayTimezone}`;
-    }
-    
-    // Also update the local time display to show the new timezone immediately
-    updateLocalTimeDisplay();
+
+    // If the new position already had a non-local toggled label, drop it
+    // so we don't end up with duplicates.
+    document.querySelectorAll(
+      `.tz-outboard-time[data-hour-offset="${newOffset}"]:not(.tz-local)`
+    ).forEach(other => other.remove());
   }
+
+  updateToggledTimezoneDisplays();
+  updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
+}
+
+function endDragLocal() {
+  if (!isDraggingLocal) return;
+  isDraggingLocal = false;
+
+  const el = document.querySelector('.tz-local');
+  if (el) el.classList.remove('dragging');
+
+  // Reconcile hour-mark displayState. Old mark is reset to 'off' (we don't
+  // remember a prior user-toggled state; that's a known limitation).
+  const newHourIndex = offsetToHourIndex(userTimezoneOffsetHours);
+  if (dragStartHourIndex !== null && dragStartHourIndex !== newHourIndex) {
+    const marks = document.querySelectorAll('.hour-mark');
+    if (marks[dragStartHourIndex]) marks[dragStartHourIndex].dataset.displayState = 'off';
+    if (marks[newHourIndex]) marks[newHourIndex].dataset.displayState = 'time';
+  }
+  dragStartHourIndex = null;
+
+  updateTimezoneQueryString(userTimezoneOffsetHours);
+  updateTimezoneIndicatorOnly(userTimezoneOffsetHours);
+}
+
+// Update the page title without touching the URL or the label position.
+function updateTimezoneIndicatorOnly(offsetHours) {
+  const abbr = TeeZee.getAbbreviation(offsetHours);
+  const natoCode = TeeZee.getNatoCode(offsetHours);
+  const displayTimezone = abbr ? `${abbr} (${natoCode} NATO)` : `GMT`;
+  document.title = `GoZulu - ${displayTimezone}`;
+  updateToggledTimezoneDisplays();
 }
 
 function updateTimezoneQueryString(offsetHours) {
@@ -1125,40 +1058,30 @@ function formatTimezoneOffset(offsetHours) {
 
 function updateTimezoneIndicator(timezone) {
   let displayTimezone = timezone;
-  
-  // If it's a NATO code or numeric offset, format it properly for display
+
   if (timezone.length === 1) {
-    // It's a NATO code, get additional info from TeeZee
+    // NATO single-letter code
     const offset = TeeZee.parseTimezone(timezone);
     const place = TeeZee.getPlaceName(offset);
     const abbr = TeeZee.getAbbreviation(offset);
-    
     if (abbr && abbr !== 'GMT') {
       displayTimezone = `${abbr} (${timezone})`;
     } else {
       displayTimezone = `${timezone} Time (${place})`;
     }
   } else if (timezone.startsWith('+') || timezone.startsWith('-') || timezone === '0') {
-    // It's a numeric offset
+    // Numeric offset
     const offset = parseInt(timezone);
     const abbr = TeeZee.getAbbreviation(offset);
     const natoCode = TeeZee.getNatoCode(offset);
-    
     if (abbr && abbr !== 'GMT') {
       displayTimezone = `${abbr} (${natoCode})`;
     } else {
       displayTimezone = `GMT${offset === 0 ? '' : timezone} (${natoCode})`;
     }
   }
-  
-  // Update page title
+
   document.title = `GoZulu - ${displayTimezone}`;
-  
-  // Update timezone indicator if it exists
-  const indicator = document.querySelector('.timezone-indicator');
-  if (indicator) {
-    indicator.textContent = `Using ${displayTimezone}`;
-  }
 }
 
 function adjustClockSize() {
@@ -1187,10 +1110,20 @@ function adjustClockSize() {
     // updateUserLocationPin(userLocation.latitude, userLocation.longitude);
   }
   
-  if (userTimezoneOffsetHours !== null) {
-    positionLocalTimeByTimezone();
-  }
-  
+  // Reposition all outboard time labels (.tz-local + toggled). The local
+  // label uses the precise (possibly fractional) userTimezoneOffsetHours.
+  document.querySelectorAll('.tz-outboard-time[data-hour-offset]').forEach(el => {
+    const isLocal = el.classList.contains('tz-local');
+    const offset = isLocal && userTimezoneOffsetHours !== null
+      ? userTimezoneOffsetHours
+      : parseFloat(el.dataset.hourOffset);
+    const radius = clockElement.offsetWidth / 2;
+    const angleDegrees = TeeZee.getClockPositionAngle(offset);
+    const radians = angleDegrees * (Math.PI / 180);
+    el.style.left = `${Math.cos(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
+    el.style.top = `${Math.sin(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
+  });
+
   updateClock();
 }
 

@@ -1,11 +1,16 @@
-const CACHE_NAME = 'gozulu-v0.5.3';
+const CACHE_NAME = 'gozulu-v0.8.5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
+  '/globe.js',
+  '/teezee.js',
   '/manifest.json',
-  '/images/earth-north-pole.jpg',
+  '/vendor/d3-array.min.js',
+  '/vendor/d3-geo.min.js',
+  '/vendor/topojson-client.min.js',
+  '/data/countries-110m.json',
   '/images/fund-button.svg',
   '/images/next-button.svg',
   '/images/help-button.svg',
