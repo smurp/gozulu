@@ -274,6 +274,22 @@ body {
   box-shadow: 0 0 20px 15px rgba(255, 215, 0, 0.8);
 }
 
+/* During a drag, after the user has held still long enough that releasing
+   would PIN. Subtle scale-up + brighter halo so the gesture is discoverable. */
+#sun-position.pinning {
+  transform: translate(-50%, -50%) scale(1.18);
+  box-shadow: 0 0 28px 18px rgba(255, 235, 120, 1);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Persistent state: the sun is pinned (page has ?as-of=). Slightly warmer
+   color and a thin ring to distinguish from the running-clock sun. */
+#sun-position.pinned {
+  background-color: #FFB347;
+  box-shadow: 0 0 15px 10px rgba(255, 165, 0, 0.6),
+              0 0 0 2px rgba(255, 215, 0, 0.9) inset;
+}
+
 .time-display {
   font-family: 'Courier New', monospace;
   font-size: 24px;

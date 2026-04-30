@@ -168,6 +168,67 @@ function updateToggledTimezoneDisplays() {
   });
 }
 
+// Write/remove ?as-of= on the URL. The format is YYYY-MM-DDThh:mm:ss + a
+// suffix: NATO single-letter zone code if the page is using ?local=<NATO>,
+// otherwise Z (UTC). Existing query params are preserved. Both functions also
+// show/hide the "Fixed time: ..." banner so the on-screen state and URL stay
+// in sync regardless of how pin/unpin is triggered.
+function setAsOfUrlParam(date) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const localParam = urlParams.get('local');
+  const useNatoCode = localParam && localParam.length === 1 && /^[A-IK-Z]$/i.test(localParam);
+  const suffix = useNatoCode ? localParam.toUpperCase() : 'Z';
+  const pad = n => String(n).padStart(2, '0');
+  const formatted =
+    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}` +
+    `T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}` +
+    suffix;
+  urlParams.delete('as-of');
+  // Build manually so the colons in as-of aren't percent-encoded
+  let newUrl = window.location.pathname;
+  newUrl += urlParams.toString()
+    ? '?' + urlParams.toString() + '&as-of=' + formatted
+    : '?as-of=' + formatted;
+  window.history.pushState({ path: newUrl }, '', newUrl);
+  showFixedTimeIndicator(formatted);
+}
+
+function clearAsOfUrlParam() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('as-of')) {
+    urlParams.delete('as-of');
+    const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+    window.history.pushState({ path: newUrl }, '', newUrl);
+  }
+  removeFixedTimeIndicator();
+}
+
+function showFixedTimeIndicator(displayText) {
+  const container = document.querySelector('.container');
+  let el = container.querySelector('.fixed-time-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'fixed-time-indicator';
+    Object.assign(el.style, {
+      position: 'absolute',
+      top: '10px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: '12px',
+      color: '#FF9090',
+      textAlign: 'center',
+      fontWeight: 'bold',
+      zIndex: '100'
+    });
+    container.appendChild(el);
+  }
+  el.textContent = `Fixed time: ${displayText}`;
+}
+
+function removeFixedTimeIndicator() {
+  document.querySelector('.fixed-time-indicator')?.remove();
+}
+
 // Map a 0-23 hour-mark index to its UTC hour offset.
 // Top of clock (0) is GMT+0; clockwise 1-12 → -1..-12; 13-23 → +11..+1.
 function hourIndexToOffset(hourIndex) {
@@ -199,9 +260,8 @@ function addOutboardTimeLabel(offset) {
   const radius = clockElement.offsetWidth / 2;
   const angleDegrees = TeeZee.getClockPositionAngle(displayOffset);
   const radians = angleDegrees * (Math.PI / 180);
-  const distanceFactor = 1.3;
-  const x = Math.cos(radians) * (radius * distanceFactor) + radius;
-  const y = Math.sin(radians) * (radius * distanceFactor) + radius;
+  const x = Math.cos(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius;
+  const y = Math.sin(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius;
 
   const el = document.createElement('div');
   el.className = 'tz-outboard-time' + (isLocal ? ' tz-local' : '');
@@ -311,35 +371,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fixedTime) {
       useFixedTime = true;
       
-      // Format the display time keeping seconds but removing milliseconds
+      // Strip milliseconds from the URL value for display, but preserve the
+      // timezone suffix.
       let displayAsOf = asOfParam;
-      
-      // If it's a full ISO string, strip the milliseconds but keep seconds
       if (asOfParam.includes('.')) {
-        // Remove the millisecond part
         const parts = asOfParam.split('.');
         if (parts.length === 2) {
-          // Keep everything before the decimal point
           const timezonePart = parts[1].match(/[Z]|[+-]\d\d:\d\d/);
           displayAsOf = parts[0] + (timezonePart ? timezonePart[0] : '');
         }
       }
-      
-      // Add visual indicator for fixed time
-      const container = document.querySelector('.container');
-      const fixedTimeIndicator = document.createElement('div');
-      fixedTimeIndicator.className = 'fixed-time-indicator';
-      fixedTimeIndicator.textContent = `Fixed time: ${displayAsOf}`;
-      fixedTimeIndicator.style.position = 'absolute';
-      fixedTimeIndicator.style.top = '10px';
-      fixedTimeIndicator.style.left = '50%';
-      fixedTimeIndicator.style.transform = 'translateX(-50%)';
-      fixedTimeIndicator.style.fontSize = '12px';
-      fixedTimeIndicator.style.color = '#FF9090';
-      fixedTimeIndicator.style.textAlign = 'center';
-      fixedTimeIndicator.style.fontWeight = 'bold';
-      fixedTimeIndicator.style.zIndex = '100';
-      container.appendChild(fixedTimeIndicator);
+      showFixedTimeIndicator(displayAsOf);
     } else {
       console.error('Invalid as-of date format:', asOfParam);
     }
@@ -354,14 +396,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize the clock
   updateClock();
   
-  // Update every second - only if not using fixed time
-  if (!useFixedTime) {
-    setInterval(() => {
-      systemTime = new Date(); // Update system time
-      updateCurrentTime();     // Update current time
-      updateClock();           // Update the clock display
-    }, 1000);
-  }
+  // Run the ticker unconditionally. When useFixedTime is true (page is pinned)
+  // or userAdjustedTime is set (mid-drag), updateCurrentTime() honors those
+  // and the displayed time stays put. The ticker keeps systemTime current so
+  // an unpin gesture can spring back to "now".
+  setInterval(() => {
+    systemTime = new Date();
+    updateCurrentTime();
+    updateClock();
+  }, 1000);
 
   // Wire global drag handlers for the (yet-to-be-created) .tz-local label
   setupGlobalLocalDragHandlers();
@@ -379,6 +422,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Setup draggable sun
   setupDraggableSun();
+
+  // Reflect the pinned state visually if we loaded with ?as-of=
+  if (useFixedTime) {
+    document.getElementById('sun-position').classList.add('pinned');
+  }
 
   // Handle window resize
   window.addEventListener('resize', adjustClockSize);
@@ -728,90 +776,99 @@ function getTimeZoneAbbreviation() {
   return timeZoneAbbr;
 }
 
+// If the user holds the sun still for at least this long before releasing,
+// the release is interpreted as PIN (commit ?as-of=). Anything quicker means
+// "let go" → spring back to realtime.
+const PIN_DWELL_MS = 200;
+// Outboard time labels sit at this multiple of the clock radius from clock
+// center. 1.20 places GMT (top) between the page title and the big Zulu time.
+const OUTBOARD_DISTANCE_FACTOR = 1.25;
+
 function setupDraggableSun() {
   const sunElement = document.getElementById('sun-position');
   const clockElement = document.getElementById('clock');
-  
+
   let isDragging = false;
-  let startAngle;
-  let currentRealTime;
-  
+  let lastMoveTime = 0;
+  let pinningTimer = null;
+
   // Mouse/Touch down event
   sunElement.addEventListener('mousedown', startDrag);
   sunElement.addEventListener('touchstart', startDrag);
-  
+
   // Mouse/Touch move events
   document.addEventListener('mousemove', drag);
   document.addEventListener('touchmove', drag);
-  
+
   // Mouse/Touch up events
   document.addEventListener('mouseup', endDrag);
   document.addEventListener('touchend', endDrag);
-  
-function startDrag(e) {
+
+  function schedulePinningHint() {
+    if (pinningTimer) clearTimeout(pinningTimer);
+    pinningTimer = setTimeout(() => {
+      sunElement.classList.add('pinning');
+    }, PIN_DWELL_MS);
+  }
+
+  function clearPinningHint() {
+    if (pinningTimer) {
+      clearTimeout(pinningTimer);
+      pinningTimer = null;
+    }
+    sunElement.classList.remove('pinning');
+  }
+
+  function startDrag(e) {
     e.preventDefault();
     isDragging = true;
-    
-    // Store the starting state - needed for calculations during drag
-    // userAdjustedTime is a copy of currentTime when drag starts
+    lastMoveTime = Date.now();
+
+    // Store the starting state - userAdjustedTime is a copy of currentTime when drag starts
     userAdjustedTime = new Date(currentTime);
-    
-    const clockRect = clockElement.getBoundingClientRect();
-    const clockCenterX = clockRect.left + clockRect.width / 2;
-    const clockCenterY = clockRect.top + clockRect.height / 2;
-    
-    // Get current position
-    const x = e.clientX || e.touches[0].clientX;
-    const y = e.clientY || e.touches[0].clientY;
-    
-    // Calculate starting angle
-    startAngle = Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI);
-    
-    // Add "dragging" class to the sun
+
     sunElement.classList.add('dragging');
-}
+    schedulePinningHint();
+  }
   
-function drag(e) {
+  function drag(e) {
     if (!isDragging) return;
     e.preventDefault();
-    
+
     const clockRect = clockElement.getBoundingClientRect();
-    const clockRadius = clockRect.width / 2;
     const clockCenterX = clockRect.left + clockRect.width / 2;
     const clockCenterY = clockRect.top + clockRect.height / 2;
-    
-    // Get current position
+
     const x = e.clientX || e.touches[0].clientX;
     const y = e.clientY || e.touches[0].clientY;
-    
-    // Calculate new angle
+
+    // Calculate new angle (clockwise from top, 0..360)
     let angle = 180 + (Math.atan2(y - clockCenterY, x - clockCenterX) * (180 / Math.PI));
-    
-    // Convert angle to hours
-    // Angle increases clockwise from right (3 o'clock position)
-    // Convert to hours format where 0 is at top (12 o'clock position)
+
+    // Convert angle to hours (0 at top = 12 o'clock = midnight UTC)
     let hours = ((angle + 90) / 15) % 24;
     if (hours < 0) hours += 24;
-    
-    // Snap to 15-minute intervals (0, 15, 30, 45 minutes)
+
+    // Snap to 15-minute intervals
     const hoursPart = Math.floor(hours);
-    let minutesPart = Math.round((hours - hoursPart) * 4) / 4; // Snap to quarters
+    let minutesPart = Math.round((hours - hoursPart) * 4) / 4;
     if (minutesPart === 1) {
       minutesPart = 0;
-      hours = (hoursPart + 1) % 24; // Ensure we wrap around at 24
+      hours = (hoursPart + 1) % 24;
     } else {
       hours = hoursPart + minutesPart;
     }
-    
-    // Start with base time (either fixed or current)
-    const baseTime = new Date(userAdjustedTime);
-    
-    // Set the new UTC time based on the dragged position
+
     userAdjustedTime.setUTCHours(hours);
     userAdjustedTime.setUTCMinutes(minutesPart * 60);
     userAdjustedTime.setUTCSeconds(0);
-    
-    // Update the display
+
+    // Track the last movement so endDrag can measure dwell. Reset the pinning
+    // hint each time the user moves so it only fires after a real pause.
+    lastMoveTime = Date.now();
+    sunElement.classList.remove('pinning');
+    schedulePinningHint();
+
     updateCurrentTime();
     updateAllTimeDisplays();
   }
@@ -819,135 +876,80 @@ function drag(e) {
   function endDrag() {
     if (!isDragging) return;
     isDragging = false;
-    
-    // Remove dragging class
+
     sunElement.classList.remove('dragging');
-    
-    if (useFixedTime) {
-      // In fixed time mode, update the URL with new as-of parameter
-      let formattedTime;
-      
-      // Check if we're using a non-UTC timezone from the 'local' parameter
-      const urlParams = new URLSearchParams(window.location.search);
-      const localParam = urlParams.get('local');
-      let useNatoCode = false;
-      let natoCode = '';
-      
-      if (localParam && localParam.length === 1 && /^[A-IK-Z]$/i.test(localParam)) {
-        // Using a NATO one-letter code
-        natoCode = localParam.toUpperCase();
-        useNatoCode = true;
-      }
-      
-      if (useNatoCode && natoCode) {
-        // Format with NATO code
-        const year = userAdjustedTime.getUTCFullYear();
-        const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
-        const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
-        const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
-        
-        // Format as YYYY-MM-DDThh:mm:ss with NATO code
-        formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${natoCode}`;
-      } else {
-        // Format with UTC (Z)
-        const year = userAdjustedTime.getUTCFullYear();
-        const month = String(userAdjustedTime.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(userAdjustedTime.getUTCDate()).padStart(2, '0');
-        const hours = String(userAdjustedTime.getUTCHours()).padStart(2, '0');
-        const minutes = String(userAdjustedTime.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(userAdjustedTime.getUTCSeconds()).padStart(2, '0');
-        
-        // Format as YYYY-MM-DDThh:mm:ssZ
-        formattedTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
-      }
-      
-      // Create URL manually to avoid encoding colons
-      urlParams.delete('as-of'); // Remove existing as-of parameter
-      
-      let newUrl = window.location.pathname;
-      if (urlParams.toString()) {
-        newUrl += '?' + urlParams.toString() + '&as-of=' + formattedTime;
-      } else {
-        newUrl += '?as-of=' + formattedTime;
-      }
-      
-      window.history.pushState({ path: newUrl }, '', newUrl);
-      
-      // Update the fixed time
+    clearPinningHint();
+
+    // Dwell = how long since the user's last drag movement. If they paused
+    // ≥ PIN_DWELL_MS before releasing, the gesture is "pin"; otherwise "let go".
+    const dwell = Date.now() - lastMoveTime;
+    const shouldPin = dwell >= PIN_DWELL_MS;
+
+    if (shouldPin && userAdjustedTime) {
+      // PIN: commit the dragged time as fixed, write ?as-of=, no spring-back.
       fixedTime = new Date(userAdjustedTime);
-      
-      // Continue using the adjusted time (no spring back)
+      useFixedTime = true;
+      setAsOfUrlParam(userAdjustedTime);
+      sunElement.classList.add('pinned');
       isAnimatingSpringBack = false;
-    } else {
-      // In normal mode, create spring-back animation
-      isAnimatingSpringBack = true;
-      
-      // Get current position and real time position
-      const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
-      const realTerminatorAngle = (systemTime.getUTCHours() + (systemTime.getUTCMinutes() / 60)) * 15 + 180;
-      
-      // Calculate difference
-      let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
-      // Ensure we go the shortest distance (handling the day boundary)
-      if (angleDiff > 180) angleDiff -= 360;
-      if (angleDiff < -180) angleDiff += 360;
-      
-      // Animation variables
-      const startTime = Date.now();
-      const duration = 800; // milliseconds
-      const startAngle = adjustedTerminatorAngle;
-      
-      // Spring animation effect using elastic easing
-      function elasticOut(t) {
-        return Math.sin(-13 * Math.PI/2 * (t + 1)) * Math.pow(2, -10 * t) + 1;
-      }
-      
-      function animateSpringBack() {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        if (progress < 1) {
-          // Calculate current angle using elastic easing
-          const currentAngle = startAngle + (angleDiff * elasticOut(progress));
-          
-          // Update position
-          const clockElement = document.getElementById('clock');
-          const radius = clockElement.offsetWidth / 2;
-          const sunElement = document.getElementById('sun-position');
-          
-          const sunAngle = (currentAngle - 90) * (Math.PI / 180);
-          const sunRadius = radius * sunScale;
-          const x = Math.cos(sunAngle) * sunRadius + radius;
-          const y = Math.sin(sunAngle) * sunRadius + radius;
-          
-          sunElement.style.left = `${x}px`;
-          sunElement.style.top = `${y}px`;
-          
-          // Also rotate the terminator
-          document.getElementById('terminator').style.transform = `rotate(${currentAngle}deg)`;
-          
-          // Continue animation
-          springBackAnimation = requestAnimationFrame(animateSpringBack);
-        } else {
-          // Animation complete
-          springBackAnimation = null;
-          isAnimatingSpringBack = false;
-          userAdjustedTime = null;
-          
-          // Update the time to system time
-          updateCurrentTime();
-          updateAllTimeDisplays();
-        }
-      }
-      
-      // Start the spring back animation
-      if (springBackAnimation) {
-        cancelAnimationFrame(springBackAnimation);
-      }
-      springBackAnimation = requestAnimationFrame(animateSpringBack);
+      // Clear userAdjustedTime so subsequent ticks resolve through fixedTime.
+      userAdjustedTime = null;
+      updateCurrentTime();
+      updateAllTimeDisplays();
+      return;
     }
+
+    // Quick release: if the page was previously pinned, this is the unpin
+    // gesture. Either way, spring back to system time.
+    if (useFixedTime) {
+      useFixedTime = false;
+      fixedTime = null;
+      clearAsOfUrlParam();
+      sunElement.classList.remove('pinned');
+    }
+
+    isAnimatingSpringBack = true;
+
+    // Spring the terminator/sun from the dragged angle back to the systemTime angle
+    const adjustedTerminatorAngle = (userAdjustedTime.getUTCHours() + (userAdjustedTime.getUTCMinutes() / 60)) * 15 + 180;
+    const realTerminatorAngle = (systemTime.getUTCHours() + (systemTime.getUTCMinutes() / 60)) * 15 + 180;
+
+    let angleDiff = (realTerminatorAngle - adjustedTerminatorAngle);
+    if (angleDiff > 180) angleDiff -= 360;
+    if (angleDiff < -180) angleDiff += 360;
+
+    const startTime = Date.now();
+    const duration = 800;
+    const startAngle = adjustedTerminatorAngle;
+
+    function elasticOut(t) {
+      return Math.sin(-13 * Math.PI / 2 * (t + 1)) * Math.pow(2, -10 * t) + 1;
+    }
+
+    function animateSpringBack() {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      if (progress < 1) {
+        const currentAngle = startAngle + (angleDiff * elasticOut(progress));
+        const radius = clockElement.offsetWidth / 2;
+        const sunAngle = (currentAngle - 90) * (Math.PI / 180);
+        const sunRadius = radius * sunScale;
+        sunElement.style.left = `${Math.cos(sunAngle) * sunRadius + radius}px`;
+        sunElement.style.top = `${Math.sin(sunAngle) * sunRadius + radius}px`;
+        document.getElementById('terminator').style.transform = `rotate(${currentAngle}deg)`;
+        springBackAnimation = requestAnimationFrame(animateSpringBack);
+      } else {
+        springBackAnimation = null;
+        isAnimatingSpringBack = false;
+        userAdjustedTime = null;
+        updateCurrentTime();
+        updateAllTimeDisplays();
+      }
+    }
+
+    if (springBackAnimation) cancelAnimationFrame(springBackAnimation);
+    springBackAnimation = requestAnimationFrame(animateSpringBack);
   }
 }
 
@@ -1003,8 +1005,8 @@ function dragLocal(e) {
     if (el) {
       const radius = clockElement.offsetWidth / 2;
       const a = TeeZee.getClockPositionAngle(newOffset) * (Math.PI / 180);
-      el.style.left = `${Math.cos(a) * (radius * 1.3) + radius}px`;
-      el.style.top = `${Math.sin(a) * (radius * 1.3) + radius}px`;
+      el.style.left = `${Math.cos(a) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
+      el.style.top = `${Math.sin(a) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
       el.dataset.hourOffset = newOffset;
     }
 
@@ -1150,8 +1152,8 @@ function adjustClockSize() {
     const radius = clockElement.offsetWidth / 2;
     const angleDegrees = TeeZee.getClockPositionAngle(offset);
     const radians = angleDegrees * (Math.PI / 180);
-    el.style.left = `${Math.cos(radians) * (radius * 1.3) + radius}px`;
-    el.style.top = `${Math.sin(radians) * (radius * 1.3) + radius}px`;
+    el.style.left = `${Math.cos(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
+    el.style.top = `${Math.sin(radians) * (radius * OUTBOARD_DISTANCE_FACTOR) + radius}px`;
   });
 
   updateClock();
