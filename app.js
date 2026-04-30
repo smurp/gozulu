@@ -170,9 +170,7 @@ function updateToggledTimezoneDisplays() {
 
 // Write/remove ?as-of= on the URL. The format is YYYY-MM-DDThh:mm:ss + a
 // suffix: NATO single-letter zone code if the page is using ?local=<NATO>,
-// otherwise Z (UTC). Existing query params are preserved. Both functions also
-// show/hide the "Fixed time: ..." banner so the on-screen state and URL stay
-// in sync regardless of how pin/unpin is triggered.
+// otherwise Z (UTC). Existing query params are preserved.
 function setAsOfUrlParam(date) {
   const urlParams = new URLSearchParams(window.location.search);
   const localParam = urlParams.get('local');
@@ -190,43 +188,26 @@ function setAsOfUrlParam(date) {
     ? '?' + urlParams.toString() + '&as-of=' + formatted
     : '?as-of=' + formatted;
   window.history.pushState({ path: newUrl }, '', newUrl);
-  showFixedTimeIndicator(formatted);
 }
 
 function clearAsOfUrlParam() {
   const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('as-of')) {
-    urlParams.delete('as-of');
-    const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-    window.history.pushState({ path: newUrl }, '', newUrl);
-  }
-  removeFixedTimeIndicator();
+  if (!urlParams.has('as-of')) return;
+  urlParams.delete('as-of');
+  const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+  window.history.pushState({ path: newUrl }, '', newUrl);
 }
 
-function showFixedTimeIndicator(displayText) {
-  const container = document.querySelector('.container');
-  let el = container.querySelector('.fixed-time-indicator');
-  if (!el) {
-    el = document.createElement('div');
-    el.className = 'fixed-time-indicator';
-    Object.assign(el.style, {
-      position: 'absolute',
-      top: '10px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      fontSize: '12px',
-      color: '#FF9090',
-      textAlign: 'center',
-      fontWeight: 'bold',
-      zIndex: '100'
-    });
-    container.appendChild(el);
-  }
-  el.textContent = `Fixed time: ${displayText}`;
-}
-
-function removeFixedTimeIndicator() {
-  document.querySelector('.fixed-time-indicator')?.remove();
+// Drop ?local= from the URL. Used when the user toggles off their local
+// timezone hour-mark — until reload, userTimezoneOffsetHours stays in memory
+// (so toggling back on still shows the same TZ); on reload the system TZ
+// takes over.
+function clearLocalUrlParam() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (!urlParams.has('local')) return;
+  urlParams.delete('local');
+  const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+  window.history.pushState({ path: newUrl }, '', newUrl);
 }
 
 // Map a 0-23 hour-mark index to its UTC hour offset.
@@ -352,17 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fixedTime) {
       useFixedTime = true;
       
-      // Strip milliseconds from the URL value for display, but preserve the
-      // timezone suffix.
-      let displayAsOf = asOfParam;
-      if (asOfParam.includes('.')) {
-        const parts = asOfParam.split('.');
-        if (parts.length === 2) {
-          const timezonePart = parts[1].match(/[Z]|[+-]\d\d:\d\d/);
-          displayAsOf = parts[0] + (timezonePart ? timezonePart[0] : '');
-        }
-      }
-      showFixedTimeIndicator(displayAsOf);
     } else {
       console.error('Invalid as-of date format:', asOfParam);
     }
@@ -480,6 +450,15 @@ function createHourMarks() {
       const current = this.dataset.displayState || 'off';
       const next = states[(states.indexOf(current) + 1) % states.length];
       this.dataset.displayState = next;
+
+      // If we're cycling the user's local hour-mark off, drop ?local= from
+      // the URL so a reload falls back to the system timezone.
+      const isLocalMark = !!document.querySelector(
+        `.tz-outboard-time.tz-local[data-hour-offset="${offset}"]`
+      );
+      if (next === 'off' && isLocalMark) {
+        clearLocalUrlParam();
+      }
 
       // Tear down any existing labels for this offset before re-rendering
       document.querySelectorAll(`.tz-outboard-time[data-hour-offset="${offset}"]`).forEach(el => el.remove());
