@@ -219,13 +219,6 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
-/* Hidden for now — redundant with the large Zulu time at screen top.
-   Element is still created/removed by the URL set/clear lifecycle so it can
-   be re-enabled by removing this rule. */
-.fixed-time-indicator {
-  display: none;
-}
-
 .tz-outboard-time {
   position: absolute;
   font-family: 'Courier New', monospace;
