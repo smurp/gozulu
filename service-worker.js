@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gozulu-v0.8.8';
+const CACHE_NAME = 'gozulu-v0.8.9';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -20,25 +20,27 @@ const ASSETS_TO_CACHE = [
   '/favicon.ico'
 ];
 
-// Install event - cache assets
+// Install event - cache assets, then skip the "waiting" phase so the new SW
+// becomes active immediately instead of stalling until every controlled tab
+// is closed.
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(ASSETS_TO_CACHE);
-      })
+      .then(cache => cache.addAll(ASSETS_TO_CACHE))
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate event - clean up old caches
+// Activate event - delete stale caches, then claim existing clients so the
+// page that just loaded starts being served by this SW (and its fresh cache)
+// without requiring another reload.
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.filter(cacheName => cacheName !== CACHE_NAME)
-          .map(cacheName => caches.delete(cacheName))
-      );
-    })
+    caches.keys()
+      .then(cacheNames => Promise.all(
+        cacheNames.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
